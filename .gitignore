@@ -1,0 +1,25 @@
+node_modules
+dist
+preview.html
+*.local
+
+# Build artifacts
+*.tsbuildinfo
+
+# Local tooling data (Freebuff desktop database — never commit)
+.freebuff/
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Design documentation
+DESIGN.md
+DESIGN-GUIDE.md
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+

@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Figtree Variable", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", "Georgia", ui-serif, serif;
+
+  --color-paper-50: #131211;
+  --color-paper-100: #1a1816;
+  --color-paper-200: #25221e;
+  --color-paper-300: #36312a;
+
+  --color-ink-900: #f3eee7;
+  --color-ink-700: #cfc6b8;
+  --color-ink-500: #93897b;
+  --color-ink-400: #685f52;
+
+  --color-pine-700: #1b5239;
+  --color-pine-600: #2b8256;
+  --color-pine-500: #38a16c;
+  --color-pine-100: #183628;
+  --color-pine-50: #132b20;
+
+  --color-terra-600: #d95a3f;
+  --color-terra-50: #331713;
+  --color-amber-600: #d99b26;
+  --color-slateblue-600: #4e93b8;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-paper-50 font-sans text-ink-900;
+  }
+
+  ::selection {
+    @apply bg-pine-100 text-ink-900;
+  }
+
+  /* Custom sleek dark scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+
+  /* Dark theme for native date/time pickers */
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.8) sepia(0.2) saturate(0.5) hue-rotate(80deg);
+    cursor: pointer;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-rise {
+  animation: rise-in 0.26s var(--ease-out-expo) both;
+}
+
+.animate-pop {
+  animation: pop-in 0.2s var(--ease-spring) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
