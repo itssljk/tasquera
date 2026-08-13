@@ -11,12 +11,24 @@ import SettingsView from './components/SettingsView'
 import TosView from './components/TosView'
 import PrivacyView from './components/PrivacyView'
 import TaskModal from './components/TaskModal'
-import { LogoMark, MenuIcon, PlusIcon } from './components/icons'
+import SearchView from './components/SearchView'
+import { IOSInstallModal, usePWAInstall } from './components/InstallPWA'
+import { LogoMark, MenuIcon, PlusIcon, SearchIcon } from './components/icons'
 import type { MenuState, Route, Task, TaskStatus } from './types'
+import {
+  buildSyncPayload,
+  clearSyncDirectoryHandle,
+  getStoredDirectoryHandle,
+  isFileSystemAccessSupported,
+  pickSyncDirectory,
+  readSyncFromDirectory,
+  writeSyncToDirectory,
+} from './lib/sync'
+import { importImages } from './lib/attachments'
 import { triggerTaskConfetti } from './lib/confetti'
 
 interface ViewData {
-  mode: 'list' | 'calendar' | 'settings' | 'tos' | 'privacy' | 'archive' | 'board'
+  mode: 'list' | 'calendar' | 'settings' | 'tos' | 'privacy' | 'archive' | 'board' | 'search'
   title: string
   subtitle: string
   open: Task[]
@@ -67,6 +79,7 @@ function EmptyState({
 export default function App() {
   const store = useStore()
   const route = useRoute()
+  const pwaInstall = usePWAInstall()
   const [menu, setMenu] = useState<MenuState>(null)
   const [drawer, setDrawer] = useState(false)
   const [armClear, setArmClear] = useState(false)
@@ -79,7 +92,100 @@ export default function App() {
     defaultStatus?: TaskStatus
   }>({ isOpen: false })
 
+  const [syncDirHandle, setSyncDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
+  const [lastSyncTime, setLastSyncTime] = useState<number | null>(null)
+
+  const isFileSystemSupported = isFileSystemAccessSupported()
+
+  // Load stored sync directory handle on mount
+  useEffect(() => {
+    if (!isFileSystemSupported) return
+    getStoredDirectoryHandle().then((handle) => {
+      if (handle) setSyncDirHandle(handle)
+    })
+  }, [isFileSystemSupported])
+
+  // Perform background sync write when local store state changes
+  const lastStateJsonRef = useRef<string>('')
+  useEffect(() => {
+    if (!syncDirHandle) return
+    const signature = JSON.stringify({
+      tasks: store.tasks,
+      collections: store.collections,
+      tombstones: store.tombstones,
+    })
+    if (signature === lastStateJsonRef.current) return
+    lastStateJsonRef.current = signature
+
+    buildSyncPayload(store.tasks, store.collections, store.tombstones).then((payload) => {
+      writeSyncToDirectory(syncDirHandle, payload).then((ok) => {
+        if (ok) {
+          setLastSyncTime(Date.now())
+          setSyncError(null)
+        } else {
+          setSyncError('Could not write to local sync folder. Please re-select the folder or check permissions.')
+        }
+      })
+    })
+  }, [store.tasks, store.collections, store.tombstones, syncDirHandle])
+
+  // Keep a stable reference to mergeState so the poll interval isn't recreated
+  // on every render (mergeState's identity changes each render).
+  const mergeStateRef = useRef(store.mergeState)
+  mergeStateRef.current = store.mergeState
+
+  // Periodic polling watcher for remote Syncthing updates (every 5s)
+  useEffect(() => {
+    if (!syncDirHandle) return
+    const interval = setInterval(async () => {
+      const payload = await readSyncFromDirectory(syncDirHandle)
+      if (payload && Array.isArray(payload.tasks)) {
+        if (payload.attachments) await importImages(payload.attachments)
+        mergeStateRef.current(payload.tasks, payload.collections || [], payload.tombstones || [])
+        setLastSyncTime(Date.now())
+      }
+    }, 5000)
+    return () => clearInterval(interval)
+  }, [syncDirHandle])
+
+  const handleSelectSyncFolder = async () => {
+    setSyncError(null)
+    const handle = await pickSyncDirectory()
+    if (handle) {
+      setSyncDirHandle(handle)
+      // Read existing data if present in directory
+      const payload = await readSyncFromDirectory(handle)
+      if (payload && Array.isArray(payload.tasks)) {
+        if (payload.attachments) await importImages(payload.attachments)
+        store.mergeState(payload.tasks, payload.collections || [], payload.tombstones || [])
+      } else {
+        // Initial write if folder has no sync file yet
+        await writeSyncToDirectory(handle, await buildSyncPayload(store.tasks, store.collections, store.tombstones))
+      }
+      setLastSyncTime(Date.now())
+    }
+  }
+
+  const handleDisconnectSyncFolder = async () => {
+    await clearSyncDirectoryHandle()
+    setSyncDirHandle(null)
+    setSyncError(null)
+  }
+
   const { tasks, collections } = store
+
+  // Global search shortcut (Cmd/Ctrl+K)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        window.location.hash = '#/search'
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     if (route.name === 'collection' && !collections.some((c) => c.id === route.id)) {
@@ -176,6 +282,8 @@ export default function App() {
         return { ...base, mode: 'tos', title: 'Terms of Service', subtitle: '' }
       case 'privacy':
         return { ...base, mode: 'privacy', title: 'Privacy Policy', subtitle: '' }
+      case 'search':
+        return { ...base, mode: 'search', title: 'Search', subtitle: '' }
     }
   }, [tasks, collections, effectiveRoute])
 
@@ -290,6 +398,8 @@ export default function App() {
     onRenameCollection: store.renameCollection,
     onDeleteCollection: store.deleteCollection,
     onReorderCollections: store.reorderCollections,
+    canInstallPWA: pwaInstall.canInstall,
+    onInstallPWA: pwaInstall.promptInstall,
   }
 
   const routeKey =
@@ -334,6 +444,16 @@ export default function App() {
             </span>
           </div>
           <div className="flex items-center gap-1.5">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => {
+                window.location.hash = '#/search'
+              }}
+              aria-label="Search"
+              className="rounded-lg p-2 text-ink-500 transition-colors duration-150 hover:bg-paper-100"
+            >
+              <SearchIcon className="size-5" />
+            </motion.button>
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => openCreateModal(activeListId)}
@@ -441,6 +561,15 @@ export default function App() {
                     onArchiveOldCompleted={store.archiveOldCompleted}
                     onExportData={store.exportData}
                     onImportData={store.importData}
+                    canInstallPWA={pwaInstall.canInstall}
+                    isStandalonePWA={pwaInstall.isStandalone}
+                    onInstallPWA={pwaInstall.promptInstall}
+                    isFileSystemSupported={isFileSystemSupported}
+                    isSyncActive={!!syncDirHandle}
+                    lastSyncFormatted={lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : null}
+                    syncErrorMsg={syncError}
+                    onSelectSyncFolder={handleSelectSyncFolder}
+                    onDisconnectSyncFolder={handleDisconnectSyncFolder}
                   />
                 </div>
               ) : view.mode === 'tos' ? (
@@ -450,6 +579,22 @@ export default function App() {
               ) : view.mode === 'privacy' ? (
                 <div className="mt-2">
                   <PrivacyView />
+                </div>
+              ) : view.mode === 'search' ? (
+                <div className="mt-2">
+                  <SearchView
+                    tasks={tasks}
+                    collections={collections}
+                    menu={menu}
+                    onMenu={setMenu}
+                    onToggle={store.toggleTask}
+                    onDelete={store.deleteTask}
+                    onUpdate={store.updateTask}
+                    onMove={store.moveTask}
+                    onArchive={store.archiveTask}
+                    onRestore={store.restoreTask}
+                    onEditDetails={openEditModal}
+                  />
                 </div>
               ) : view.mode === 'archive' ? (
                 view.archivedList.length === 0 ? (
@@ -602,6 +747,11 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <IOSInstallModal
+        isOpen={pwaInstall.showIOSModal}
+        onClose={() => pwaInstall.setShowIOSModal(false)}
+      />
     </div>
   )
 }

@@ -12,11 +12,13 @@ import {
   InboxIcon,
   LogoMark,
   PlusIcon,
+  SearchIcon,
   SettingsIcon,
   SunIcon,
   UpcomingIcon,
 } from './icons'
 import { APP_VERSION } from '../constants'
+import { SidebarInstallButton } from './InstallPWA'
 
 const menuItem =
   'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13.5px] text-ink-700 transition-colors duration-100 hover:bg-paper-100 hover:text-ink-900 active:bg-paper-200'
@@ -37,6 +39,8 @@ interface SidebarProps {
   onDeleteCollection: (id: string) => void
   onReorderCollections?: (kind: CollectionKind, reordered: Collection[]) => void
   onNavigate?: () => void
+  canInstallPWA?: boolean
+  onInstallPWA?: () => void
 }
 
 function NavLink({
@@ -117,6 +121,8 @@ export default function Sidebar(props: SidebarProps) {
     onDeleteCollection,
     onReorderCollections,
     onNavigate,
+    canInstallPWA,
+    onInstallPWA,
   } = props
 
   const rootRef = useRef<HTMLElement>(null)
@@ -441,6 +447,7 @@ export default function Sidebar(props: SidebarProps) {
           <NavLink href="#/inbox" active={route.name === 'inbox'} icon={<InboxIcon className="size-[18px]" />} label="Inbox" count={countFor({ name: 'inbox' })} onClick={onNavigate} />
           <NavLink href="#/today" active={route.name === 'today'} icon={<SunIcon className="size-[18px]" />} label="Today" count={countFor({ name: 'today' })} onClick={onNavigate} />
           <NavLink href="#/upcoming" active={route.name === 'upcoming'} icon={<UpcomingIcon className="size-[18px]" />} label="Upcoming" count={countFor({ name: 'upcoming' })} onClick={onNavigate} />
+          <NavLink href="#/search" active={route.name === 'search'} icon={<SearchIcon className="size-[18px]" />} label="Search" onClick={onNavigate} />
 
           <SectionLabel label="Boards" onAdd={() => beginAdd('board')} />
           <AnimatePresence>{addRow('board')}</AnimatePresence>
@@ -470,7 +477,10 @@ export default function Sidebar(props: SidebarProps) {
           <NavLink href="#/archive" active={route.name === 'archive'} icon={<ArchiveIcon className="size-[18px]" />} label="Archive" onClick={onNavigate} />
         </div>
 
-        <div className="pt-4 border-t border-paper-200/40 mt-3">
+        <div className="pt-4 border-t border-paper-200/40 mt-3 space-y-1">
+          {canInstallPWA && onInstallPWA && (
+            <SidebarInstallButton onClick={onInstallPWA} />
+          )}
           <NavLink href="#/settings" active={route.name === 'settings'} icon={<SettingsIcon className="size-[18px]" />} label="Settings" onClick={onNavigate} />
           <div className="mt-2.5 px-3 flex items-center justify-between text-[11.5px] text-ink-400">
             <span className="font-mono font-medium text-ink-500">{APP_VERSION}</span>

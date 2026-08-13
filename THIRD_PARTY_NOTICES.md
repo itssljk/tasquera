@@ -13,6 +13,8 @@ are reproduced below as required. All packages are also declared in
 | Instrument Serif | 5.x | SIL OFL 1.1 | The Instrument Serif Project Authors |
 | Tailwind CSS | 4.x | MIT | Tailwind Labs Inc. |
 | Vite | 8.x | MIT | VoidZero Inc. and contributors |
+| vite-plugin-pwa | 1.3.x | MIT | Anthony Fu |
+| Workbox (bundled into the service worker) | 7.4.x | MIT | Google LLC |
 | TypeScript | 7.x | Apache-2.0 | Microsoft Corporation (dev only) |
 
 ---
@@ -182,6 +184,41 @@ Tailwind CSS and Vite are distributed under the MIT License
 (`Copyright (c) Tailwind Labs Inc.` and `Copyright (c) VoidZero Inc. and
 contributors` respectively). Both are build-time tooling; the full license
 text is available in the respective packages in `node_modules/`.
+
+---
+
+## MIT License — vite-plugin-pwa & Workbox
+
+`vite-plugin-pwa` (Copyright (c) 2020-PRESENT Anthony Fu) and Workbox
+(Copyright 2018 Google LLC) are distributed under the MIT License. Workbox
+modules are bundled into the generated service worker (`dist/sw.js`,
+`dist/workbox-*.js`) and shipped with the app; the full license text is
+available in `node_modules/vite-plugin-pwa` and the respective `node_modules/workbox-*` packages.
+
+```
+MIT License
+
+Copyright (c) 2020-PRESENT Anthony Fu <https://github.com/antfu>
+Copyright 2018 Google LLC
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ---
 

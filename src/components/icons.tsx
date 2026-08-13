@@ -242,15 +242,6 @@ export function NotesIcon(props: IconProps) {
   )
 }
 
-export function LockIcon(props: IconProps) {
-  return (
-    <svg {...strokeProps} {...props}>
-      <rect x="4.5" y="8.5" width="11" height="8" rx="1.5" />
-      <path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" />
-    </svg>
-  )
-}
-
 export function ShieldCheckIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
@@ -272,5 +263,40 @@ export function GripVerticalIcon(props: IconProps) {
     </svg>
   )
 }
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 16.5h12" />
+    </svg>
+  )
+}
+
+export function ShareIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M10 13V3.5M6.5 7L10 3.5 13.5 7M4 11v4.5a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V11" />
+    </svg>
+  )
+}
+
+export function PlusSquareIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <rect x="3.5" y="3.5" width="13" height="13" rx="2.5" />
+      <path d="M10 7v6M7 10h6" />
+    </svg>
+  )
+}
+
+export function SearchIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <circle cx="9" cy="9" r="5.5" />
+      <path d="M13.5 13.5L17 17" />
+    </svg>
+  )
+}
+
 
 

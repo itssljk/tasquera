@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { AppSettings, Collection, CollectionKind, Task, TaskStatus } from '../types'
+import type { AppSettings, Collection, CollectionKind, Task, TaskStatus, Tombstone } from '../types'
+import { freshId, normalizeCollection, normalizeTask, normalizeTombstone, uid } from '../lib/model'
+import { mergeSyncState } from '../lib/merge'
+import { collectImages, deleteImages, importImages } from '../lib/attachments'
 
 const STORAGE_KEY = 'tasquera.state.v2'
 const LEGACY_KEY = 'tasquera.tasks.v1'
@@ -13,42 +16,12 @@ interface Persisted {
   version: 2
   tasks: Task[]
   collections: Collection[]
+  tombstones?: Tombstone[]
   settings?: AppSettings
 }
 
-function uid(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
-  return Math.random().toString(36).slice(2) + Date.now().toString(36)
-}
-
-function slugify(name: string): string {
-  const s = name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-  return s || 'collection'
-}
-
-function freshId(name: string, existing: Collection[]): string {
-  const base = slugify(name)
-  if (!existing.some((c) => c.id === base)) return base
-  return `${base}-${Math.random().toString(36).slice(2, 5)}`
-}
-
-function normalizeTask(t: Partial<Task> & { id: string; title: string }): Task {
-  return {
-    done: false,
-    createdAt: Date.now(),
-    completedAt: null,
-    listId: null,
-    dueDate: null,
-    deadline: null,
-    description: '',
-    priority: 'medium',
-    subtasks: [],
-    links: [],
-    images: [],
-    archived: false,
-    status: t.done ? 'done' : t.status || 'todo',
-    ...t,
-  }
+function withTombstone(list: Tombstone[], t: Tombstone): Tombstone[] {
+  return [...list.filter((x) => x.id !== t.id), t]
 }
 
 function loadState(): Persisted {
@@ -60,7 +33,8 @@ function loadState(): Persisted {
         return {
           version: 2,
           tasks: parsed.tasks.map(normalizeTask),
-          collections: parsed.collections as Collection[],
+          collections: (parsed.collections as Collection[]).map(normalizeCollection),
+          tombstones: (parsed.tombstones ?? []).map(normalizeTombstone),
           settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
         }
       }
@@ -68,15 +42,16 @@ function loadState(): Persisted {
     const legacyRaw = localStorage.getItem(LEGACY_KEY)
     const legacy: unknown = legacyRaw ? JSON.parse(legacyRaw) : []
     const tasks = Array.isArray(legacy) ? legacy.map(normalizeTask) : []
-    return { version: 2, tasks, collections: [], settings: DEFAULT_SETTINGS }
+    return { version: 2, tasks, collections: [], tombstones: [], settings: DEFAULT_SETTINGS }
   } catch {
-    return { version: 2, tasks: [], collections: [], settings: DEFAULT_SETTINGS }
+    return { version: 2, tasks: [], collections: [], tombstones: [], settings: DEFAULT_SETTINGS }
   }
 }
 
 export interface StoreValue {
   tasks: Task[]
   collections: Collection[]
+  tombstones: Tombstone[]
   settings: AppSettings
   canUndo: boolean
   canRedo: boolean
@@ -95,8 +70,9 @@ export interface StoreValue {
   restoreTask: (id: string) => void
   clearCompleted: () => void
   clearAll: () => void
-  exportData: () => string
-  importData: (json: string) => boolean
+  exportData: () => Promise<string>
+  importData: (json: string) => Promise<boolean>
+  mergeState: (remoteTasks: Task[], remoteCollections: Collection[], remoteTombstones?: Tombstone[]) => void
   reorderTasks: (ids: string[]) => void
   reorderCollections: (kind: CollectionKind, reordered: Collection[]) => void
   reorderColumnTasks: (status: TaskStatus, reordered: Task[]) => void
@@ -192,6 +168,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const value: StoreValue = {
     tasks: state.tasks,
     collections: state.collections,
+    tombstones: state.tombstones ?? [],
     settings: state.settings || DEFAULT_SETTINGS,
     canUndo: past.length > 0,
     canRedo: future.length > 0,
@@ -239,6 +216,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               done: false,
               status: 'todo',
               completedAt: null,
+              updatedAt: Date.now(),
             }
           }
           if (t.status === 'in_progress') {
@@ -247,6 +225,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               done: true,
               status: 'done',
               completedAt: Date.now(),
+              updatedAt: Date.now(),
             }
           }
           return {
@@ -254,18 +233,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             done: false,
             status: 'in_progress',
             completedAt: null,
+            updatedAt: Date.now(),
           }
         }),
       })),
 
-    deleteTask: (id) => commitState((s) => ({ ...s, tasks: s.tasks.filter((t) => t.id !== id) })),
+    deleteTask: (id) =>
+      commitState((s) => {
+        const task = s.tasks.find((t) => t.id === id)
+        if (task?.images?.length) void deleteImages(task.images)
+        return {
+          ...s,
+          tasks: s.tasks.filter((t) => t.id !== id),
+          tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'task', deletedAt: Date.now() }),
+        }
+      }),
 
     updateTask: (id, patch) =>
-      commitState((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) => {
+      commitState((s) => {
+        let removedImages: string[] = []
+        const tasks = s.tasks.map((t) => {
           if (t.id !== id) return t
-          const next = { ...t, ...patch }
+          if (patch.images !== undefined) {
+            const nextRefs = new Set(patch.images)
+            removedImages = (t.images ?? []).filter((r) => !nextRefs.has(r))
+          }
+          const next = { ...t, ...patch, updatedAt: Date.now() }
           if (patch.subtasks !== undefined && patch.subtasks.length > 0) {
             if (patch.subtasks.every((st) => st.done)) {
               next.done = true
@@ -287,14 +280,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             }
           }
           return next
-        }),
-      })),
+        })
+        if (removedImages.length > 0) void deleteImages(removedImages)
+        return { ...s, tasks }
+      }),
 
     moveTask: (id, listId) =>
-      commitState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, listId } : t)) })),
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (t.id === id ? { ...t, listId, updatedAt: Date.now() } : t)),
+      })),
 
     archiveTask: (id) =>
-      commitState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived: true } : t)) })),
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived: true, updatedAt: Date.now() } : t)),
+      })),
 
     archiveOldCompleted: (days = 7) =>
       commitState((s) => {
@@ -303,7 +304,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s,
           tasks: s.tasks.map((t) => {
             if (!t.archived && t.done && (t.completedAt ?? t.createdAt) < cutoff) {
-              return { ...t, archived: true }
+              return { ...t, archived: true, updatedAt: Date.now() }
             }
             return t
           }),
@@ -311,27 +312,84 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
 
     restoreTask: (id) =>
-      commitState((s) => ({ ...s, tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived: false } : t)) })),
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived: false, updatedAt: Date.now() } : t)),
+      })),
 
-    clearCompleted: () => commitState((s) => ({ ...s, tasks: s.tasks.filter((t) => !t.done) })),
+    clearCompleted: () =>
+      commitState((s) => {
+        const done = s.tasks.filter((t) => t.done)
+        const now = Date.now()
+        if (done.length === 0) return s
+        void deleteImages(done.flatMap((t) => t.images ?? []))
+        return {
+          ...s,
+          tasks: s.tasks.filter((t) => !t.done),
+          tombstones: done.reduce(
+            (list, t) => withTombstone(list, { id: t.id, kind: 'task', deletedAt: now }),
+            s.tombstones ?? [],
+          ),
+        }
+      }),
 
-    clearAll: () => commitState((s) => ({ ...s, tasks: [] })),
+    clearAll: () =>
+      commitState((s) => {
+        if (s.tasks.length === 0) return s
+        const now = Date.now()
+        void deleteImages(s.tasks.flatMap((t) => t.images ?? []))
+        return {
+          ...s,
+          tasks: [],
+          tombstones: s.tasks.reduce(
+            (list, t) => withTombstone(list, { id: t.id, kind: 'task', deletedAt: now }),
+            s.tombstones ?? [],
+          ),
+        }
+      }),
 
-    exportData: () => JSON.stringify(state, null, 2),
+    exportData: async () => {
+      const attachments = await collectImages(state.tasks.flatMap((t) => t.images ?? []))
+      return JSON.stringify({ ...state, attachments }, null, 2)
+    },
 
-    importData: (json) => {
+    importData: async (json) => {
       try {
-        const parsed = JSON.parse(json) as Partial<Persisted>
+        const parsed = JSON.parse(json) as Partial<Persisted> & { attachments?: Record<string, string> }
         if (!Array.isArray(parsed.tasks) || !Array.isArray(parsed.collections)) return false
+        if (parsed.attachments && typeof parsed.attachments === 'object') {
+          await importImages(parsed.attachments)
+        }
         commitState(() => ({
           version: 2,
           tasks: parsed.tasks!.map(normalizeTask),
-          collections: parsed.collections as Collection[],
+          collections: (parsed.collections as Collection[]).map(normalizeCollection),
+          tombstones: (parsed.tombstones ?? []).map(normalizeTombstone),
         }))
         return true
       } catch {
         return false
       }
+    },
+
+    mergeState: (remoteTasks, remoteCollections, remoteTombstones = []) => {
+      commitState((s) => {
+        const result = mergeSyncState(
+          s.tasks,
+          s.collections,
+          s.tombstones ?? [],
+          remoteTasks,
+          remoteCollections,
+          remoteTombstones,
+        )
+        if (!result.changed) return s
+        return {
+          ...s,
+          tasks: result.tasks,
+          collections: result.collections,
+          tombstones: result.tombstones,
+        }
+      })
     },
 
     reorderTasks: (ids) =>
@@ -370,21 +428,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       commitState((s) => {
         const trimmed = name.trim()
         if (!trimmed) return s
-        const c: Collection = { id: freshId(trimmed, s.collections), kind, name: trimmed, createdAt: Date.now() }
+        const c: Collection = {
+          id: freshId(trimmed, s.collections),
+          kind,
+          name: trimmed,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
         return { ...s, collections: [c, ...s.collections] }
       }),
 
     renameCollection: (id, name) => {
       const trimmed = name.trim()
       if (!trimmed) return
-      commitState((s) => ({ ...s, collections: s.collections.map((c) => (c.id === id ? { ...c, name: trimmed } : c)) }))
+      commitState((s) => ({
+        ...s,
+        collections: s.collections.map((c) => (c.id === id ? { ...c, name: trimmed, updatedAt: Date.now() } : c)),
+      }))
     },
 
     deleteCollection: (id) =>
       commitState((s) => ({
         ...s,
         collections: s.collections.filter((c) => c.id !== id),
-        tasks: s.tasks.map((t) => (t.listId === id ? { ...t, listId: null } : t)),
+        tasks: s.tasks.map((t) => (t.listId === id ? { ...t, listId: null, updatedAt: Date.now() } : t)),
+        tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'collection', deletedAt: Date.now() }),
       })),
   }
 

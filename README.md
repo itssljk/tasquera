@@ -8,8 +8,10 @@ A calm, focused task manager built to help you organize your work without the no
 - **Views**: Inbox, Today, Upcoming, Calendar, Kanban Boards, Completed, and Archive.
 - **Boards and lists**: Kanban boards with drag-and-drop columns, or clean task lists.
 - **Task details**: Subtasks with progress tracking, notes, links, image attachments, priorities, and due dates.
+- **Search**: Full-text search across task titles, notes, subtasks, links, and lists (`Ctrl/Cmd+K`).
 - **Keyboard shortcuts**: Quick-add with `/`, save with `Enter`, undo with `Ctrl/Cmd+Z`, and drag to reorder.
 - **Backup and restore**: Export or import your data as JSON anytime in Settings.
+- **Local folder sync**: Bind a Syncthing folder and Tasquera writes a `tasquera-sync.json` file it keeps in sync across devices — including deletions.
 
 ## Getting Started
 
@@ -31,7 +33,7 @@ Requires Node 20+ and npm.
 
 ## Data & Privacy
 
-All data is stored locally in your browser (`localStorage` key `tasquera.state.v2`). Clearing browser storage removes your data, so export a backup from Settings first. Image attachments are stored as base64 data URLs, so uploading many large images can use up browser storage quota.
+All data is stored locally in your browser (`localStorage` key `tasquera.state.v2`). Clearing browser storage removes your data, so export a backup from Settings first. Image attachments are stored in IndexedDB (referenced by id from your tasks) so they don't count against the localStorage quota, and they're included in backups and in the sync folder's JSON file.
 
 ## License
 

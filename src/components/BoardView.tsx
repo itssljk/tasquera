@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
+import { ImageThumbs } from './ImageThumbs'
 import type { Collection, MenuState, Task, TaskStatus } from '../types'
 import { formatDue, formatDeadline, isOverdue, isDeadlineOverdue } from '../lib/date'
 import { triggerTaskConfetti } from '../lib/confetti'
@@ -394,20 +395,7 @@ export default function BoardView({
                     {imagesCount > 0 && (
                       <div className="space-y-1">
                         <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ink-400">Images</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {t.images?.map((img, idx) => (
-                            <img
-                              key={idx}
-                              src={img}
-                              alt={`Attachment ${idx + 1}`}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setLightboxImage(img)
-                              }}
-                              className="size-14 object-cover rounded-md border border-paper-300 shadow-2xs cursor-pointer hover:scale-105 transition-transform"
-                            />
-                          ))}
-                        </div>
+                        <ImageThumbs refs={t.images ?? []} onPreview={setLightboxImage} imgClassName="size-14" gapClassName="gap-1.5" />
                       </div>
                     )}
                     </div>

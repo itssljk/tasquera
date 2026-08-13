@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { LogoMark } from './icons'
+import { CheckIcon, LogoMark } from './icons'
 import { APP_NAME, APP_VERSION, LAST_LEGAL_UPDATE } from '../constants'
 
 import type { AppSettings } from '../types'
@@ -21,22 +21,40 @@ export default function SettingsView({
   onArchiveOldCompleted,
   onExportData,
   onImportData,
+  canInstallPWA,
+  isStandalonePWA,
+  onInstallPWA,
+  isFileSystemSupported,
+  isSyncActive,
+  lastSyncFormatted,
+  syncErrorMsg,
+  onSelectSyncFolder,
+  onDisconnectSyncFolder,
 }: {
   settings?: AppSettings
   onUpdateSettings?: (patch: Partial<AppSettings>) => void
   onClearAll: () => void
   onArchiveOldCompleted?: (days?: number) => void
-  onExportData?: () => string
-  onImportData?: (json: string) => boolean
+  onExportData?: () => Promise<string>
+  onImportData?: (json: string) => Promise<boolean>
+  canInstallPWA?: boolean
+  isStandalonePWA?: boolean
+  onInstallPWA?: () => void
+  isFileSystemSupported?: boolean
+  isSyncActive?: boolean
+  lastSyncFormatted?: string | null
+  syncErrorMsg?: string | null
+  onSelectSyncFolder?: () => void
+  onDisconnectSyncFolder?: () => void
 }) {
   const [armed, setArmed] = useState(false)
   const [archivedCountMsg, setArchivedCountMsg] = useState<string | null>(null)
   const [dataMsg, setDataMsg] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const exportData = () => {
+  const exportData = async () => {
     if (!onExportData) return
-    const json = onExportData()
+    const json = await onExportData()
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -53,8 +71,8 @@ export default function SettingsView({
     e.target.value = ''
     if (!file || !onImportData) return
     const reader = new FileReader()
-    reader.onload = () => {
-      const ok = onImportData(String(reader.result ?? ''))
+    reader.onload = async () => {
+      const ok = await onImportData(String(reader.result ?? ''))
       setDataMsg(ok ? 'Data imported.' : 'Import failed — not a valid Tasquera backup.')
       setTimeout(() => setDataMsg(null), 4000)
     }
@@ -94,6 +112,35 @@ export default function SettingsView({
       </div>
 
       <section className="mt-10">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Progressive Web App</h2>
+        <div className="mt-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[15px] font-medium text-ink-900">Desktop & Mobile App</p>
+            <p className="mt-0.5 text-[13px] text-ink-500">
+              {isStandalonePWA
+                ? 'Tasquera is installed and running as a native standalone app with offline support.'
+                : 'Download Tasquera to your desktop or phone home screen for instant offline access.'}
+            </p>
+          </div>
+          {isStandalonePWA ? (
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-pine-500/10 px-3 py-1.5 text-[13px] font-medium text-pine-600 border border-pine-500/20">
+              <CheckIcon className="size-4" /> Installed
+            </span>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onInstallPWA}
+              disabled={!canInstallPWA && !onInstallPWA}
+              className="shrink-0 rounded-xl bg-pine-600 px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-pine-700 disabled:opacity-50"
+            >
+              Install App
+            </motion.button>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-10">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Task Automation</h2>
         <div className="mt-3 flex items-center justify-between gap-4">
           <div>
@@ -109,6 +156,65 @@ export default function SettingsView({
           >
             Archive (&gt;7d)
           </motion.button>
+        </div>
+      </section>
+
+      <section className="mt-10">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Syncthing & Local Sync</h2>
+        <div className="mt-3 rounded-2xl border border-paper-200/60 bg-paper-100/40 p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[15px] font-medium text-ink-900">Syncthing Folder Binding</p>
+              <p className="mt-0.5 text-[13px] text-ink-500 max-w-md">
+                Select a local folder shared via Syncthing. Tasquera automatically writes & syncs its state file directly inside that folder.
+              </p>
+            </div>
+            {isSyncActive ? (
+              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-pine-500/10 px-3 py-1.5 text-[13px] font-medium text-pine-600 border border-pine-500/20">
+                <CheckIcon className="size-4" /> Active Folder Sync
+              </span>
+            ) : (
+              <motion.button
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onSelectSyncFolder}
+                disabled={!isFileSystemSupported}
+                className="shrink-0 rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:bg-pine-700 disabled:opacity-50"
+              >
+                Select Sync Folder
+              </motion.button>
+            )}
+          </div>
+
+          {!isFileSystemSupported && (
+            <div className="mt-3 rounded-xl bg-amber-500/10 p-3 border border-amber-500/20 text-[13px] text-amber-800">
+              Your current browser does not support native folder pickers. You can still use the <strong>Backup & restore (Export/Import)</strong> buttons below to sync data manually!
+            </div>
+          )}
+
+          {isSyncActive && (
+            <div className="mt-4 pt-3 border-t border-paper-200/60 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[13px] text-ink-600">
+                <span className="inline-block size-2 rounded-full bg-pine-500 animate-pulse" />
+                <span>Auto-syncing folder. Last check: {lastSyncFormatted || 'Just now'}</span>
+              </div>
+              <button
+                type="button"
+                onClick={onDisconnectSyncFolder}
+                className="text-[12.5px] font-medium text-terra-600 hover:underline"
+              >
+                Disconnect Folder
+              </button>
+            </div>
+          )}
+
+          {syncErrorMsg && (
+            <p className="mt-2 text-[12.5px] font-medium text-terra-600">{syncErrorMsg}</p>
+          )}
+
+          <div className="mt-3 text-[12.5px] text-ink-400">
+            💡 <strong>How it works:</strong> Click <em>Select Sync Folder</em> and pick your Syncthing shared directory. Tasquera creates and maintains <code className="font-mono">tasquera-sync.json</code> automatically!
+          </div>
         </div>
       </section>
 

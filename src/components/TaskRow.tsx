@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import type { Transition } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
+import { ImageThumbs } from './ImageThumbs'
 import { formatDate, formatDue, formatDeadline, isOverdue, isDeadlineOverdue } from '../lib/date'
 import type { Collection, Task } from '../types'
 import { triggerTaskConfetti } from '../lib/confetti'
@@ -518,20 +519,7 @@ export default function TaskRow(props: TaskRowProps) {
               {imagesCount > 0 && (
                 <div className="space-y-1.5 pt-1 border-t border-paper-200/50">
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">Images</span>
-                  <div className="flex flex-wrap gap-2">
-                    {task.images?.map((img, idx) => (
-                      <img
-                        key={idx}
-                        src={img}
-                        alt={`Attachment ${idx + 1}`}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setLightboxImage(img)
-                        }}
-                        className="size-16 object-cover rounded-lg border border-paper-300 shadow-2xs cursor-pointer hover:scale-105 transition-transform"
-                      />
-                    ))}
-                  </div>
+                  <ImageThumbs refs={task.images ?? []} onPreview={setLightboxImage} imgClassName="size-16" />
                 </div>
               )}
               </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import type { Collection, PriorityLevel, Subtask, Task, TaskLink, TaskStatus } from '../types'
+import { putImage, resolveMany } from '../lib/attachments'
 import Dropdown from './Dropdown'
 import DatePicker from './DatePicker'
 import {
@@ -52,6 +53,7 @@ export default function TaskModal(props: TaskModalProps) {
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [links, setLinks] = useState<TaskLink[]>([])
   const [images, setImages] = useState<string[]>([])
+  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
 
   // Temporary inputs
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
@@ -96,6 +98,7 @@ export default function TaskModal(props: TaskModalProps) {
       setShowAddImage(false)
       setPreviewImage(null)
       setIsDraggingOver(false)
+      void resolveMany(taskToEdit?.images ?? []).then(setImageUrls)
     }
   }, [isOpen, taskToEdit, defaultListId, defaultStatus])
 
@@ -194,7 +197,10 @@ export default function TaskModal(props: TaskModalProps) {
       reader.onload = (event) => {
         const result = event.target?.result as string
         if (result) {
-          setImages((prev) => [...prev, result])
+          putImage(result).then((id) => {
+            setImages((prev) => [...prev, id])
+            setImageUrls((prev) => ({ ...prev, [id]: result }))
+          })
         }
       }
       reader.readAsDataURL(file)
@@ -205,6 +211,7 @@ export default function TaskModal(props: TaskModalProps) {
     const url = newImageUrl.trim()
     if (!url) return
     setImages((prev) => [...prev, url])
+    setImageUrls((prev) => ({ ...prev, [url]: url }))
     setNewImageUrl('')
     setShowAddImage(false)
   }
@@ -251,7 +258,15 @@ export default function TaskModal(props: TaskModalProps) {
   }
 
   const removeImage = (index: number) => {
+    // Removal is deferred: the store diffs old vs. new on save, so cancelling
+    // the edit leaves the attachment intact.
+    const ref = images[index]
     setImages((prev) => prev.filter((_, i) => i !== index))
+    setImageUrls((prev) => {
+      const next = { ...prev }
+      delete next[ref]
+      return next
+    })
   }
 
   const doneSubtasksCount = subtasks.filter((s) => s.done).length
@@ -629,9 +644,9 @@ export default function TaskModal(props: TaskModalProps) {
                   {images.map((img, idx) => (
                     <div key={idx} className="group relative aspect-square overflow-hidden rounded-xl bg-paper-50 shadow-xs border border-paper-200/60">
                       <img
-                        src={img}
+                        src={imageUrls[img] ?? img}
                         alt={`Attachment ${idx + 1}`}
-                        onClick={() => setPreviewImage(img)}
+                        onClick={() => setPreviewImage(imageUrls[img] ?? img)}
                         className="h-full w-full cursor-pointer object-cover transition-transform duration-200 hover:scale-105"
                       />
                       <button
