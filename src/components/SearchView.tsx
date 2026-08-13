@@ -58,14 +58,12 @@ function HighlightedText({ text, terms }: { text: string; terms?: string[] }) {
 
 function SearchResultItem({
   task,
-  listName,
   match,
   matchedTerms,
   collections,
   onTeleport,
 }: {
   task: Task
-  listName: string
   match: { field: string; snippet: string }
   matchedTerms?: string[]
   collections: Collection[]
@@ -336,7 +334,6 @@ export default function SearchView(props: SearchViewProps) {
                   <SearchResultItem
                     key={r.task.id}
                     task={r.task}
-                    listName={r.listName}
                     match={r.match}
                     matchedTerms={r.matchedTerms}
                     collections={collections}
