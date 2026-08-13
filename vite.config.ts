@@ -11,7 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon-512x512.png'],
       manifest: {
-        name: 'Tasquera — Focus on what matters',
+        name: 'Tasquera',
         short_name: 'Tasquera',
         description: 'A calm, focused to-do list. Tasks, without the noise.',
         theme_color: '#131211',

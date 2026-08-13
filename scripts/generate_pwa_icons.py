@@ -31,11 +31,12 @@ def draw_icon(size, corner_radius, is_maskable=False):
         p3 = (s * (23.0 / 32.0), s * (11.5 / 32.0))
         stroke = int(s * (3.4 / 32.0))
     
-    # Draw checkmark with round joins and caps
-    draw.line([p1, p2, p3], fill=fg_color, width=stroke, joint="round")
-    # Draw end caps as circles for clean rounded ends
+    # Draw thick line segments
+    draw.line([p1, p2], fill=fg_color, width=stroke)
+    draw.line([p2, p3], fill=fg_color, width=stroke)
+    # Draw smooth round caps and joint circle at all 3 points (p1, p2, p3)
     cap_r = stroke / 2.0
-    for pt in [p1, p3]:
+    for pt in [p1, p2, p3]:
         draw.ellipse([pt[0] - cap_r, pt[1] - cap_r, pt[0] + cap_r, pt[1] + cap_r], fill=fg_color)
         
     # Resize down with Lanczos resampling
