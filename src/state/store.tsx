@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { AppSettings, Collection, CollectionKind, Task, TaskStatus, Tombstone } from '../types'
 import { freshId, normalizeCollection, normalizeTask, normalizeTombstone, uid } from '../lib/model'
+import { nextOccurrenceTask } from '../lib/recurrence'
 import { mergeSyncState } from '../lib/merge'
 import { collectImages, deleteImages, importImages } from '../lib/attachments'
 
@@ -206,37 +207,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
 
     toggleTask: (id) =>
-      commitState((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) => {
+      commitState((s) => {
+        let spawned: Task | null = null
+        const tasks = s.tasks.map((t) => {
           if (t.id !== id) return t
-          if (t.done || t.status === 'done') {
-            return {
-              ...t,
-              done: false,
-              status: 'todo',
-              completedAt: null,
-              updatedAt: Date.now(),
-            }
+          const wasDone = t.done || t.status === 'done'
+          let next: Task
+          if (wasDone) {
+            next = { ...t, done: false, status: 'todo', completedAt: null, updatedAt: Date.now() }
+          } else if (t.status === 'in_progress') {
+            next = { ...t, done: true, status: 'done', completedAt: Date.now(), updatedAt: Date.now() }
+          } else {
+            next = { ...t, done: false, status: 'in_progress', completedAt: null, updatedAt: Date.now() }
           }
-          if (t.status === 'in_progress') {
-            return {
-              ...t,
-              done: true,
-              status: 'done',
-              completedAt: Date.now(),
-              updatedAt: Date.now(),
-            }
+          if (!wasDone && next.status === 'done' && next.recurrence) {
+            spawned = nextOccurrenceTask(next, next.recurrence)
           }
-          return {
-            ...t,
-            done: false,
-            status: 'in_progress',
-            completedAt: null,
-            updatedAt: Date.now(),
-          }
-        }),
-      })),
+          return next
+        })
+        return spawned ? { ...s, tasks: [spawned, ...tasks] } : { ...s, tasks }
+      }),
 
     deleteTask: (id) =>
       commitState((s) => {
@@ -252,6 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     updateTask: (id, patch) =>
       commitState((s) => {
         let removedImages: string[] = []
+        let spawned: Task | null = null
         const tasks = s.tasks.map((t) => {
           if (t.id !== id) return t
           if (patch.images !== undefined) {
@@ -279,10 +270,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
               next.completedAt = null
             }
           }
+          const wasDone = t.done || t.status === 'done'
+          const isDoneNow = next.done || next.status === 'done'
+          if (!wasDone && isDoneNow && next.recurrence) {
+            spawned = nextOccurrenceTask(next, next.recurrence)
+          }
           return next
         })
         if (removedImages.length > 0) void deleteImages(removedImages)
-        return { ...s, tasks }
+        return spawned ? { ...s, tasks: [spawned, ...tasks] } : { ...s, tasks }
       }),
 
     moveTask: (id, listId) =>

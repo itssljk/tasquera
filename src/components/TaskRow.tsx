@@ -5,6 +5,7 @@ import type { Transition } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
 import { ImageThumbs } from './ImageThumbs'
 import { formatDate, formatDue, formatDeadline, isOverdue, isDeadlineOverdue } from '../lib/date'
+import { recurrenceLabel } from '../lib/recurrence'
 import type { Collection, Task } from '../types'
 import { triggerTaskConfetti } from '../lib/confetti'
 import {
@@ -22,6 +23,7 @@ import {
   NotesIcon,
   PencilIcon,
   PlusIcon,
+  RepeatIcon,
   SubtaskIcon,
   TrashIcon,
 } from './icons'
@@ -266,6 +268,14 @@ export default function TaskRow(props: TaskRowProps) {
             >
               <FlagIcon className="size-3" />
               {task.priority}
+            </span>
+          )}
+
+          {/* Recurrence badge */}
+          {task.recurrence && !done && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/10 px-2 py-0.5 text-[11px] font-medium text-pine-600">
+              <RepeatIcon className="size-3" />
+              {recurrenceLabel(task.recurrence)}
             </span>
           )}
 

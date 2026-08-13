@@ -41,6 +41,7 @@ interface ParsedQuery {
   isDone?: boolean
   isArchived?: boolean
   isInProgress?: boolean
+  isRecurring?: boolean
   priority?: string
   inList?: string
 }
@@ -59,6 +60,8 @@ function parseQuery(rawQuery: string): ParsedQuery {
       parsed.isArchived = true
     } else if (part === 'is:in_progress' || part === 'status:in_progress') {
       parsed.isInProgress = true
+    } else if (part === 'is:recurring' || part === 'is:repeating') {
+      parsed.isRecurring = true
     } else if (part.startsWith('p:') || part.startsWith('priority:')) {
       const val = part.slice(part.indexOf(':') + 1)
       if (['low', 'medium', 'high', 'urgent'].includes(val)) {
@@ -96,6 +99,7 @@ export function searchTasks(
 
     if (parsed.isDone !== undefined && t.done !== parsed.isDone) continue
     if (parsed.isInProgress && t.status !== 'in_progress') continue
+    if (parsed.isRecurring && !t.recurrence) continue
     if (parsed.priority && t.priority !== parsed.priority) continue
 
     const listName = t.listId ? (collections.find((c) => c.id === t.listId)?.name ?? 'Inbox') : 'Inbox'

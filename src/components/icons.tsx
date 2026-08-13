@@ -44,6 +44,14 @@ export function PlusIcon(props: IconProps) {
   )
 }
 
+export function MinusIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M4.2 10h11.6" />
+    </svg>
+  )
+}
+
 export function TrashIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
@@ -206,6 +214,17 @@ export function ClockIcon(props: IconProps) {
     <svg {...strokeProps} {...props}>
       <circle cx="10" cy="10" r="6.5" />
       <path d="M10 6.5v3.8l2.5 1.5" />
+    </svg>
+  )
+}
+
+export function RepeatIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M16.5 3.5l2 2-2 2" />
+      <path d="M4.5 6.5h9a2.5 2.5 0 0 1 2.5 2.5v1.5" />
+      <path d="M3.5 16.5l-2-2 2-2" />
+      <path d="M15.5 13.5h-9a2.5 2.5 0 0 1-2.5-2.5V9.5" />
     </svg>
   )
 }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import type { Collection, PriorityLevel, Subtask, Task, TaskLink, TaskStatus } from '../types'
+import type { Collection, PriorityLevel, Recurrence, Subtask, Task, TaskLink, TaskStatus } from '../types'
 import { putImage, resolveMany } from '../lib/attachments'
 import Dropdown from './Dropdown'
 import DatePicker from './DatePicker'
+import RecurrencePicker from './RecurrencePicker'
 import {
   CheckCircleIcon,
   CloseIcon,
@@ -48,6 +49,7 @@ export default function TaskModal(props: TaskModalProps) {
   const [listId, setListId] = useState<string | null>(defaultListId)
   const [status, setStatus] = useState<TaskStatus>(defaultStatus)
   const [priority, setPriority] = useState<PriorityLevel>('medium')
+  const [recurrence, setRecurrence] = useState<Recurrence | null>(null)
   const [dueDate, setDueDate] = useState<string>('')
   const [deadline, setDeadline] = useState<string>('')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
@@ -73,6 +75,7 @@ export default function TaskModal(props: TaskModalProps) {
         setListId(taskToEdit.listId)
         setStatus(taskToEdit.status || (taskToEdit.done ? 'done' : 'todo'))
         setPriority(taskToEdit.priority || 'medium')
+        setRecurrence(taskToEdit.recurrence ?? null)
         setDueDate(taskToEdit.dueDate || '')
         setDeadline(taskToEdit.deadline || '')
         setSubtasks(taskToEdit.subtasks || [])
@@ -84,6 +87,7 @@ export default function TaskModal(props: TaskModalProps) {
         setListId(defaultListId)
         setStatus(defaultStatus)
         setPriority('medium')
+        setRecurrence(null)
         setDueDate('')
         setDeadline('')
         setSubtasks([])
@@ -116,6 +120,7 @@ export default function TaskModal(props: TaskModalProps) {
       status,
       done: status === 'done',
       priority,
+      recurrence,
       dueDate: dueDate || null,
       deadline: deadline || null,
       subtasks,
@@ -369,6 +374,9 @@ export default function TaskModal(props: TaskModalProps) {
               valueTextClass={priorityStyle.text}
               options={PRIORITIES.map((p) => ({ value: p.id, label: p.label, textClass: p.text }))}
             />
+
+            {/* Recurrence */}
+            <RecurrencePicker value={recurrence} onChange={setRecurrence} />
           </div>
 
           {/* Date & Deadline Fields */}

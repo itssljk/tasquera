@@ -50,6 +50,40 @@ describe('store', () => {
     expect(result.current.tasks[0].done).toBe(true)
   })
 
+  it('spawns the next occurrence when a recurring task is completed', () => {
+    const { result } = setup()
+    act(() => result.current.addTask({ title: 'Water plants', recurrence: { rule: 'daily' }, dueDate: '2026-08-13' }))
+    const id = result.current.tasks[0].id
+
+    // todo -> in_progress does not spawn
+    act(() => result.current.toggleTask(id))
+    expect(result.current.tasks).toHaveLength(1)
+
+    // in_progress -> done spawns the next occurrence
+    act(() => result.current.toggleTask(id))
+    expect(result.current.tasks).toHaveLength(2)
+
+    const [next, completed] = result.current.tasks
+    expect(completed.id).toBe(id)
+    expect(completed.status).toBe('done')
+    expect(next.id).not.toBe(id)
+    expect(next.title).toBe('Water plants')
+    expect(next.status).toBe('todo')
+    expect(next.dueDate).toBe('2026-08-14')
+    expect(next.recurrence).toEqual({ rule: 'daily' })
+  })
+
+  it('spawns the next occurrence when a recurring task is marked done via updateTask', () => {
+    const { result } = setup()
+    act(() => result.current.addTask({ title: 'Weekly review', recurrence: { rule: 'weekly' }, dueDate: '2026-08-13' }))
+    const id = result.current.tasks[0].id
+
+    act(() => result.current.updateTask(id, { status: 'done', done: true }))
+    expect(result.current.tasks).toHaveLength(2)
+    expect(result.current.tasks[0].dueDate).toBe('2026-08-20')
+    expect(result.current.tasks[0].status).toBe('todo')
+  })
+
   it('records a tombstone on delete and clears it on undo', () => {
     const { result } = setup()
     act(() => result.current.addTask('Hello'))

@@ -23,6 +23,17 @@ export type TaskStatus = 'todo' | 'in_progress' | 'done'
 
 export type PriorityLevel = 'low' | 'medium' | 'high' | 'urgent'
 
+export type RecurrenceRule = 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly'
+
+/** How a task repeats. Simple rules use only `rule`; custom rules add a modifier. */
+export interface Recurrence {
+  rule: RecurrenceRule
+  /** Repeats every N units (e.g. every 3 days). */
+  interval?: number
+  /** Day of the month (1-31) for monthly-on-a-specific-day rules. */
+  day?: number
+}
+
 export interface Subtask {
   id: string
   title: string
@@ -52,6 +63,7 @@ export interface Task {
   images?: string[]
   archived: boolean
   status?: TaskStatus
+  recurrence?: Recurrence | null
 }
 
 export type Route =
