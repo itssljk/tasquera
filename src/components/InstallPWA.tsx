@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { DownloadIcon, LogoMark, PlusSquareIcon, ShareIcon } from './icons'
+import { DownloadIcon, LogoMark, PlusSquareIcon, ShareIcon, CloseIcon } from './icons'
+import { isNativePlatform } from '../lib/sync'
+import { useIsDesktop } from '../lib/useMediaQuery'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -14,6 +16,8 @@ export function usePWAInstall() {
   const [showIOSModal, setShowIOSModal] = useState(false)
 
   useEffect(() => {
+    if (isNativePlatform()) return
+
     // Check if already in standalone mode
     const isStandaloneMode =
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -30,17 +34,9 @@ export function usePWAInstall() {
       setDeferredPrompt(e as BeforeInstallPromptEvent)
     }
 
-    const handleAppInstalled = () => {
-      setIsStandalone(true)
-      setDeferredPrompt(null)
-    }
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-    window.addEventListener('appinstalled', handleAppInstalled)
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
-      window.removeEventListener('appinstalled', handleAppInstalled)
     }
   }, [])
 
@@ -50,19 +46,15 @@ export function usePWAInstall() {
       const choice = await deferredPrompt.userChoice
       if (choice.outcome === 'accepted') {
         setDeferredPrompt(null)
-        setIsStandalone(true)
       }
-    } else if (isIOS && !isStandalone) {
+    } else if (isIOS) {
       setShowIOSModal(true)
     }
   }
 
-  const canInstall = !isStandalone && (!!deferredPrompt || isIOS)
-
   return {
-    canInstall,
+    canInstall: !!deferredPrompt || isIOS,
     isStandalone,
-    isIOS,
     showIOSModal,
     setShowIOSModal,
     promptInstall,
@@ -76,71 +68,107 @@ export function IOSInstallModal({
   isOpen: boolean
   onClose: () => void
 }) {
+  const isDesktop = useIsDesktop()
+  if (isNativePlatform()) return null
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <>
           <motion.div
+            key="install-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
             onClick={onClose}
-            className="fixed inset-0 bg-ink-900/40 backdrop-blur-xs"
+            className="fixed inset-0 z-50 bg-[#0c0b0a]/70 backdrop-blur-sm"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: 'spring', duration: 0.3, bounce: 0 }}
-            className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-paper-200/80 bg-paper-50 p-6 shadow-xl"
+            key="install-panel"
+            initial={isDesktop ? { x: '100%' } : { y: '100%' }}
+            animate={isDesktop ? { x: 0 } : { y: 0 }}
+            exit={isDesktop ? { x: '100%' } : { y: '100%' }}
+            transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Install Tasquera"
+            className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
+              isDesktop
+                ? 'inset-y-0 right-0 w-full max-w-md border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
+                : 'inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)] pb-[env(safe-area-inset-bottom,0px)]'
+            }`}
           >
-            <div className="flex items-center gap-3">
-              <LogoMark className="size-8 shrink-0" />
-              <div>
-                <h3 className="font-sans text-[17px] font-bold text-ink-900">Install Tasquera</h3>
-                <p className="text-[12.5px] text-ink-500">Add to your iPhone / iPad home screen</p>
+            {/* Mobile grab handle */}
+            <div className="flex w-full justify-center pt-2.5 pb-1 md:hidden">
+              <div className="h-1 w-10 rounded-full bg-ink-300/50" />
+            </div>
+
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-paper-200/60 px-6 py-4">
+              <div className="flex items-center gap-3">
+                <LogoMark className="size-7 shrink-0" />
+                <div>
+                  <h3 className="font-sans text-[17px] font-bold text-ink-900 leading-tight">Install Tasquera</h3>
+                  <p className="text-[12px] text-ink-500">Add to iPhone / iPad home screen</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close"
+                className="rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900"
+              >
+                <CloseIcon className="size-[18px]" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+              <div className="space-y-3.5 text-[13.5px] text-ink-700">
+                <div className="flex items-start gap-3 rounded-xl bg-paper-200/50 p-3.5 border border-paper-200/60">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-[12px] font-bold text-white">
+                    1
+                  </span>
+                  <p className="leading-snug">
+                    Tap the <span className="font-semibold text-ink-900">Share</span> button in Safari's toolbar below{' '}
+                    <ShareIcon className="inline size-4 text-pine-600" />.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-xl bg-paper-200/50 p-3.5 border border-paper-200/60">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-[12px] font-bold text-white">
+                    2
+                  </span>
+                  <p className="leading-snug">
+                    Scroll down and tap <span className="font-semibold text-ink-900">Add to Home Screen</span>{' '}
+                    <PlusSquareIcon className="inline size-4 text-pine-600" />.
+                  </p>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-xl bg-paper-200/50 p-3.5 border border-paper-200/60">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-[12px] font-bold text-white">
+                    3
+                  </span>
+                  <p className="leading-snug">
+                    Tap <span className="font-semibold text-ink-900">Add</span> in the top-right corner to finish.
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="mt-5 space-y-3.5 text-[13.5px] text-ink-700">
-              <div className="flex items-start gap-3 rounded-xl bg-paper-100/70 p-3">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-paper-200 text-[12px] font-semibold text-ink-600">
-                  1
-                </span>
-                <p className="leading-snug">
-                  Tap the <span className="font-medium text-ink-900">Share</span> button in Safari's toolbar below{' '}
-                  <ShareIcon className="inline size-4 text-pine-600" />.
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3 rounded-xl bg-paper-100/70 p-3">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-paper-200 text-[12px] font-semibold text-ink-600">
-                  2
-                </span>
-                <p className="leading-snug">
-                  Scroll down and tap <span className="font-medium text-ink-900">Add to Home Screen</span>{' '}
-                  <PlusSquareIcon className="inline size-4 text-pine-600" />.
-                </p>
-              </div>
-
-              <div className="flex items-start gap-3 rounded-xl bg-paper-100/70 p-3">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-paper-200 text-[12px] font-semibold text-ink-600">
-                  3
-                </span>
-                <p className="leading-snug">
-                  Tap <span className="font-medium text-ink-900">Add</span> in the top-right corner to finish.
-                </p>
-              </div>
+            {/* Sticky footer */}
+            <div className="border-t border-paper-200/70 bg-paper-100/95 px-6 py-3.5 backdrop-blur-xs">
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-xl bg-pine-600 py-2.5 text-center text-[14px] font-semibold text-white shadow-xs transition-colors hover:bg-pine-700 active:scale-[0.99]"
+              >
+                Got it
+              </button>
             </div>
-
-            <button
-              onClick={onClose}
-              className="mt-6 w-full rounded-xl bg-pine-600 py-2.5 text-center text-[14px] font-semibold text-white transition-colors hover:bg-pine-700 active:scale-[0.99]"
-            >
-              Got it
-            </button>
           </motion.div>
-        </div>
+        </>
       )}
     </AnimatePresence>
   )
@@ -151,13 +179,13 @@ export function SidebarInstallButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] font-medium text-pine-700 transition-colors duration-150 bg-pine-500/10 hover:bg-pine-500/20 active:scale-[0.99]"
+      className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] font-semibold text-pine-300 transition-colors duration-150 bg-pine-500/15 hover:bg-pine-500/25 active:scale-[0.99] border border-pine-500/30"
     >
-      <span className="relative z-10 shrink-0 text-pine-600">
+      <span className="relative z-10 shrink-0 text-pine-400">
         <DownloadIcon className="size-[18px]" />
       </span>
       <span className="relative z-10 min-w-0 flex-1 truncate">Install App</span>
-      <span className="relative z-10 shrink-0 rounded-md bg-pine-600 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+      <span className="relative z-10 shrink-0 rounded-md bg-pine-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-paper-50">
         PWA
       </span>
     </button>

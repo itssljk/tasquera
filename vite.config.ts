@@ -1,3 +1,5 @@
+import { copyFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -48,7 +50,16 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2,ttf}']
       }
-    })
+    }),
+    {
+      // Ship the third-party notices with the built app so license texts
+      // travel alongside the distributed software (also embedded in the bundle
+      // via the in-app licenses view).
+      name: 'copy-third-party-notices',
+      closeBundle() {
+        copyFileSync(resolve('THIRD_PARTY_NOTICES.md'), resolve('dist/THIRD_PARTY_NOTICES.md'))
+      },
+    },
   ],
 })
 

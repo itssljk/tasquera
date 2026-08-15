@@ -51,19 +51,20 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
             <span>100% Local-First Privacy Guarantee</span>
           </div>
           <p>
-            {APP_NAME} is built from the ground up to respect your privacy. All your tasks, dates, boards, and lists stay strictly on your device inside your browser&apos;s local storage.
+            {APP_NAME} is built from the ground up to respect your privacy. All your tasks, dates, boards, and lists stay strictly on your device — in your browser&apos;s local storage on the web, or in the app&apos;s private storage on the Android app.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-[16px] font-semibold text-ink-900">1. Data We Store</h2>
           <p>
-            When you create tasks, set deadlines, organize boards, or adjust preferences, {APP_NAME} stores this information in your web browser&apos;s local storage (`localStorage`).
+            When you create tasks, set deadlines, organize boards, or adjust preferences, {APP_NAME} stores this information locally on your device — in your web browser&apos;s local storage on the web, or in the app&apos;s private storage on the Android app. Image attachments are stored in your browser&apos;s IndexedDB (or the app&apos;s equivalent local storage) so they don&apos;t count against the main storage quota.
           </p>
           <ul className="list-disc pl-5 space-y-1 text-ink-600">
             <li>Task names, descriptions, priorities, and subtasks</li>
             <li>Board names, list categories, and creation dates</li>
             <li>Completed task history and archive records</li>
+            <li>Image attachments (in IndexedDB, local to your device)</li>
           </ul>
         </section>
 
@@ -82,18 +83,34 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
           <ul className="list-disc pl-5 space-y-1 text-ink-600">
             <li>You can clear all stored tasks anytime directly from the Settings screen.</li>
             <li>Clearing browser storage or site cache will clear locally saved tasks unless backed up.</li>
+            <li>On Android, you can uninstall the app (or clear its data in system settings) to remove all locally stored data.</li>
           </ul>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-[16px] font-semibold text-ink-900">4. Third-Party Libraries</h2>
+          <h2 className="text-[16px] font-semibold text-ink-900">4. Optional Local Folder Sync</h2>
           <p>
-            {APP_NAME} utilizes open-source UI libraries (such as Framer Motion and standard React dependencies) bundled directly with the application client. No external network requests are dispatched to process your task input.
+            If you enable <strong>folder sync</strong> in Settings, {APP_NAME} writes your tasks to a folder you choose on your device (on Android, <code>Documents/Tsqsync/</code>) as a plain JSON file, so you can sync it with tools like Syncthing. This feature is entirely optional and off by default:
+          </p>
+          <ul className="list-disc pl-5 space-y-1 text-ink-600">
+            <li>You pick the folder — {APP_NAME} never scans or accesses your other files.</li>
+            <li>Disconnecting sync stops all reads and writes to that folder.</li>
+            <li>The file contains your task data, so treat it like any private file you share.</li>
+          </ul>
+          <p>
+            {APP_NAME} does not request access to all files on your device, and it does not upload or transmit this folder anywhere.
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-[16px] font-semibold text-ink-900">5. Updates to This Policy</h2>
+          <h2 className="text-[16px] font-semibold text-ink-900">5. Third-Party Libraries</h2>
+          <p>
+            {APP_NAME} utilizes open-source UI libraries (such as Framer Motion, React, and Capacitor) bundled directly with the application client. No external network requests are dispatched to process your task input. License texts for all bundled libraries are available in-app under Settings &rarr; About &amp; Legal &rarr; Open Source Licenses.
+          </p>
+        </section>
+
+        <section className="space-y-3">
+          <h2 className="text-[16px] font-semibold text-ink-900">6. Updates to This Policy</h2>
           <p>
             Should we update our privacy practices or features, changes will be published here with an updated effective date and version reference.
           </p>

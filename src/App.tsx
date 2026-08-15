@@ -10,25 +10,29 @@ import CalendarView from './components/CalendarView'
 import SettingsView from './components/SettingsView'
 import TosView from './components/TosView'
 import PrivacyView from './components/PrivacyView'
+import LicensesView from './components/LicensesView'
 import TaskModal from './components/TaskModal'
 import SearchView from './components/SearchView'
 import { IOSInstallModal, usePWAInstall } from './components/InstallPWA'
 import { LogoMark, MenuIcon, PlusIcon, SearchIcon } from './components/icons'
+import { StatusBar, Style } from '@capacitor/status-bar'
 import type { MenuState, Route, Task, TaskStatus } from './types'
 import {
   buildSyncPayload,
   clearSyncDirectoryHandle,
   getStoredDirectoryHandle,
   isFileSystemAccessSupported,
+  isNativePlatform,
   pickSyncDirectory,
   readSyncFromDirectory,
   writeSyncToDirectory,
+  type SyncHandle,
 } from './lib/sync'
 import { importImages } from './lib/attachments'
 import { triggerTaskConfetti } from './lib/confetti'
 
 interface ViewData {
-  mode: 'list' | 'calendar' | 'settings' | 'tos' | 'privacy' | 'archive' | 'board' | 'search'
+  mode: 'list' | 'calendar' | 'settings' | 'tos' | 'privacy' | 'licenses' | 'archive' | 'board' | 'search'
   title: string
   subtitle: string
   open: Task[]
@@ -90,13 +94,23 @@ export default function App() {
     taskToEdit?: Task | null
     defaultListId?: string | null
     defaultStatus?: TaskStatus
+    defaultDueDate?: string | null
   }>({ isOpen: false })
 
-  const [syncDirHandle, setSyncDirHandle] = useState<FileSystemDirectoryHandle | null>(null)
+  const [syncDirHandle, setSyncDirHandle] = useState<SyncHandle | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null)
 
   const isFileSystemSupported = isFileSystemAccessSupported()
+
+  // Configure transparent edge-to-edge status bar on native platform
+  useEffect(() => {
+    if (isNativePlatform()) {
+      StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
+      StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
+      StatusBar.setBackgroundColor({ color: '#00000000' }).catch(() => {})
+    }
+  }, [])
 
   // Load stored sync directory handle on mount
   useEffect(() => {
@@ -282,8 +296,12 @@ export default function App() {
         return { ...base, mode: 'tos', title: 'Terms of Service', subtitle: '' }
       case 'privacy':
         return { ...base, mode: 'privacy', title: 'Privacy Policy', subtitle: '' }
+      case 'licenses':
+        return { ...base, mode: 'licenses', title: 'Open Source Licenses', subtitle: '' }
       case 'search':
         return { ...base, mode: 'search', title: 'Search', subtitle: '' }
+      default:
+        return base
     }
   }, [tasks, collections, effectiveRoute])
 
@@ -320,8 +338,18 @@ export default function App() {
     setArmClear(false)
   }
 
-  const openCreateModal = (listId: string | null = activeListId, status: TaskStatus = 'todo') => {
-    setModalState({ isOpen: true, taskToEdit: null, defaultListId: listId, defaultStatus: status })
+  const openCreateModal = (
+    listId: string | null = activeListId,
+    status: TaskStatus = 'todo',
+    dueDate: string | null = null
+  ) => {
+    setModalState({
+      isOpen: true,
+      taskToEdit: null,
+      defaultListId: listId,
+      defaultStatus: status,
+      defaultDueDate: dueDate,
+    })
   }
 
   const openEditModal = (task: Task) => {
@@ -398,7 +426,7 @@ export default function App() {
     onRenameCollection: store.renameCollection,
     onDeleteCollection: store.deleteCollection,
     onReorderCollections: store.reorderCollections,
-    canInstallPWA: pwaInstall.canInstall,
+    canInstallPWA: isNativePlatform() ? false : pwaInstall.canInstall,
     onInstallPWA: pwaInstall.promptInstall,
   }
 
@@ -436,7 +464,7 @@ export default function App() {
       </AnimatePresence>
 
       <main className="min-w-0 flex-1 overflow-y-auto">
-        <div className="sticky top-0 z-10 flex items-center justify-between bg-paper-50/90 px-4 py-3 backdrop-blur-md md:hidden">
+        <div className="sticky top-0 z-10 flex items-center justify-between bg-paper-50/90 px-4 pb-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md md:hidden">
           <div className="flex items-center gap-2">
             <LogoMark className="size-5" />
             <span className="font-sans text-[18px] font-bold tracking-tight text-ink-900">
@@ -550,6 +578,10 @@ export default function App() {
                     onUpdate={store.updateTask}
                     onMove={store.moveTask}
                     onArchive={store.archiveTask}
+                    onRestore={store.restoreTask}
+                    onEditDetails={openEditModal}
+                    onOpenCreateModal={openCreateModal}
+                    onAddTask={store.addTask}
                   />
                 </div>
               ) : view.mode === 'settings' ? (
@@ -561,10 +593,11 @@ export default function App() {
                     onArchiveOldCompleted={store.archiveOldCompleted}
                     onExportData={store.exportData}
                     onImportData={store.importData}
-                    canInstallPWA={pwaInstall.canInstall}
-                    isStandalonePWA={pwaInstall.isStandalone}
+                    canInstallPWA={isNativePlatform() ? false : pwaInstall.canInstall}
+                    isStandalonePWA={isNativePlatform() ? false : pwaInstall.isStandalone}
                     onInstallPWA={pwaInstall.promptInstall}
                     isFileSystemSupported={isFileSystemSupported}
+                    isNative={isNativePlatform()}
                     isSyncActive={!!syncDirHandle}
                     lastSyncFormatted={lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : null}
                     syncErrorMsg={syncError}
@@ -579,6 +612,10 @@ export default function App() {
               ) : view.mode === 'privacy' ? (
                 <div className="mt-2">
                   <PrivacyView />
+                </div>
+              ) : view.mode === 'licenses' ? (
+                <div className="mt-2">
+                  <LicensesView />
                 </div>
               ) : view.mode === 'search' ? (
                 <div className="mt-2">
@@ -601,7 +638,7 @@ export default function App() {
                   <EmptyState title="The archive is empty." sub="Archived tasks rest here, out of the way." />
                 ) : (
                   <ul className="mt-6">
-                    <AnimatePresence mode="popLayout">
+                    <AnimatePresence mode="popLayout" initial={false}>
                       {view.archivedList.map((t) => renderRow(t, t.done, `In ${listName(t)}`))}
                     </AnimatePresence>
                   </ul>
@@ -629,7 +666,7 @@ export default function App() {
                           {g.label}
                         </h2>
                         <ul className="mt-1">
-                          <AnimatePresence mode="popLayout">
+                          <AnimatePresence mode="popLayout" initial={false}>
                             {g.tasks.map((t) => renderRow(t, false))}
                           </AnimatePresence>
                         </ul>
@@ -637,7 +674,7 @@ export default function App() {
                     ))
                   ) : effectiveRoute.name === 'completed' ? (
                     <ul className="mt-6">
-                      <AnimatePresence mode="popLayout">
+                      <AnimatePresence mode="popLayout" initial={false}>
                         {view.doneList.map((t) => renderRow(t, true))}
                       </AnimatePresence>
                     </ul>
@@ -649,13 +686,13 @@ export default function App() {
                           values={view.open.map((t) => t.id)}
                           onReorder={(ids) => store.reorderTasks(ids)}
                         >
-                          <AnimatePresence mode="popLayout">
+                          <AnimatePresence mode="popLayout" initial={false}>
                             {view.open.map((t) => renderRow(t, false))}
                           </AnimatePresence>
                         </Reorder.Group>
                       ) : (
                         <ul>
-                          <AnimatePresence mode="popLayout">
+                          <AnimatePresence mode="popLayout" initial={false}>
                             {view.open.map((t) => renderRow(t, false))}
                           </AnimatePresence>
                         </ul>
@@ -697,6 +734,7 @@ export default function App() {
             taskToEdit={modalState.taskToEdit}
             defaultListId={modalState.defaultListId}
             defaultStatus={modalState.defaultStatus}
+            defaultDueDate={modalState.defaultDueDate}
             collections={collections}
             onClose={closeModal}
             onSave={handleSaveTask}
@@ -748,10 +786,12 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <IOSInstallModal
-        isOpen={pwaInstall.showIOSModal}
-        onClose={() => pwaInstall.setShowIOSModal(false)}
-      />
+      {!isNativePlatform() && (
+        <IOSInstallModal
+          isOpen={pwaInstall.showIOSModal}
+          onClose={() => pwaInstall.setShowIOSModal(false)}
+        />
+      )}
     </div>
   )
 }

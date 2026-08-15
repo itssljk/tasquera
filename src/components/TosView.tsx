@@ -58,7 +58,7 @@ export default function TosView({ onBack }: { onBack?: () => void }) {
             {APP_NAME} is a calm, focused productivity and task management system designed to help you organize your work, boards, and schedules efficiently.
           </p>
           <p>
-            {APP_NAME} operates primarily as a <strong>local-first application</strong>. Your tasks, collections, subtasks, notes, and preferences are stored directly within your browser or client device&apos;s local storage.
+            {APP_NAME} operates primarily as a <strong>local-first application</strong>. Your tasks, collections, subtasks, notes, and preferences are stored directly within your browser&apos;s local storage (on the web), or within the app&apos;s private storage on your device (in the Android app). Optional folder sync writes your data only to a folder you explicitly choose.
           </p>
         </section>
 

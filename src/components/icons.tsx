@@ -317,5 +317,22 @@ export function SearchIcon(props: IconProps) {
   )
 }
 
+export function FolderSyncIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M3.5 6.5A1.5 1.5 0 0 1 5 5h3.2l1.6 1.8H15a1.5 1.5 0 0 1 1.5 1.5v6.2a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />
+      <path d="M12.5 10a2.2 2.2 0 1 0 1 2.2" strokeWidth={1.5} />
+      <path d="M14.5 10h-2v2" strokeWidth={1.5} />
+    </svg>
+  )
+}
 
+export function InfoIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 9.2v4.3M10 6.5h.01" />
+    </svg>
+  )
+}
 

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CheckIcon, LogoMark } from './icons'
+import { CheckIcon, FolderSyncIcon, InfoIcon, LogoMark } from './icons'
+import AutoArchivePicker from './AutoArchivePicker'
 import { APP_NAME, APP_VERSION, LAST_LEGAL_UPDATE } from '../constants'
 
 import type { AppSettings } from '../types'
@@ -25,6 +26,7 @@ export default function SettingsView({
   isStandalonePWA,
   onInstallPWA,
   isFileSystemSupported,
+  isNative,
   isSyncActive,
   lastSyncFormatted,
   syncErrorMsg,
@@ -41,6 +43,7 @@ export default function SettingsView({
   isStandalonePWA?: boolean
   onInstallPWA?: () => void
   isFileSystemSupported?: boolean
+  isNative?: boolean
   isSyncActive?: boolean
   lastSyncFormatted?: string | null
   syncErrorMsg?: string | null
@@ -88,14 +91,17 @@ export default function SettingsView({
     setArmed(false)
   }
 
+  const currentArchiveDays = settings?.autoArchiveDays ?? 7
+
   const handleArchiveOld = () => {
-    onArchiveOldCompleted?.(7)
-    setArchivedCountMsg('Archived tasks older than 7 days!')
+    const days = currentArchiveDays > 0 ? currentArchiveDays : 7
+    onArchiveOldCompleted?.(days)
+    setArchivedCountMsg(`Archived completed tasks older than ${days} ${days === 1 ? 'day' : 'days'}!`)
     setTimeout(() => setArchivedCountMsg(null), 3000)
   }
 
   return (
-    <div>
+    <div className="pb-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <LogoMark className="size-8" />
@@ -106,118 +112,194 @@ export default function SettingsView({
             <p className="mt-1.5 text-[12.5px] text-ink-500">{APP_VERSION} · calm by design</p>
           </div>
         </div>
-        <span className="rounded-lg bg-pine-500/10 px-2.5 py-1 text-[12px] font-mono font-medium text-pine-500 border border-pine-500/20">
+        <span className="rounded-lg bg-pine-500/15 px-2.5 py-1 text-[12px] font-mono font-semibold text-pine-300 border border-pine-500/30">
           Version {APP_VERSION}
         </span>
       </div>
 
-      <section className="mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Progressive Web App</h2>
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[15px] font-medium text-ink-900">Desktop & Mobile App</p>
-            <p className="mt-0.5 text-[13px] text-ink-500">
-              {isStandalonePWA
-                ? 'Tasquera is installed and running as a native standalone app with offline support.'
-                : 'Download Tasquera to your desktop or phone home screen for instant offline access.'}
-            </p>
-          </div>
-          {isStandalonePWA ? (
-            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-pine-500/10 px-3 py-1.5 text-[13px] font-medium text-pine-600 border border-pine-500/20">
-              <CheckIcon className="size-4" /> Installed
-            </span>
-          ) : (
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={onInstallPWA}
-              disabled={!canInstallPWA && !onInstallPWA}
-              className="shrink-0 rounded-xl bg-pine-600 px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-pine-700 disabled:opacity-50"
-            >
-              Install App
-            </motion.button>
-          )}
-        </div>
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Task Automation</h2>
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[15px] text-ink-900">Archive old completed tasks</p>
-            <p className="mt-0.5 text-[13px] text-ink-500">Moves tasks completed over 7 days ago to the Archive.</p>
-            {archivedCountMsg && <p className="mt-1 text-[12px] font-medium text-pine-600">{archivedCountMsg}</p>}
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleArchiveOld}
-            className="shrink-0 rounded-xl bg-paper-200 px-4 py-2 text-[14px] font-medium text-ink-700 transition-colors hover:bg-paper-300"
-          >
-            Archive (&gt;7d)
-          </motion.button>
-        </div>
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Syncthing & Local Sync</h2>
-        <div className="mt-3 rounded-2xl border border-paper-200/60 bg-paper-100/40 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[15px] font-medium text-ink-900">Syncthing Folder Binding</p>
-              <p className="mt-0.5 text-[13px] text-ink-500 max-w-md">
-                Select a local folder shared via Syncthing. Tasquera automatically writes & syncs its state file directly inside that folder.
+      {/* PWA section is only shown on web, completely hidden for native APK */}
+      {!isNative && (
+        <section className="mt-10">
+          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Progressive Web App</h2>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium text-ink-900">Desktop & Mobile App</p>
+              <p className="mt-0.5 text-[13px] text-ink-500">
+                {isStandalonePWA
+                  ? 'Tasquera is installed and running as a native standalone app with offline support.'
+                  : 'Download Tasquera to your desktop or phone home screen for instant offline access.'}
               </p>
             </div>
-            {isSyncActive ? (
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-pine-500/10 px-3 py-1.5 text-[13px] font-medium text-pine-600 border border-pine-500/20">
-                <CheckIcon className="size-4" /> Active Folder Sync
+            {isStandalonePWA ? (
+              <span className="inline-flex shrink-0 items-center self-start sm:self-center gap-1.5 rounded-xl bg-pine-500/15 px-3 py-1.5 text-[13px] font-medium text-pine-300 border border-pine-500/30">
+                <CheckIcon className="size-4 text-pine-400" /> Installed
               </span>
             ) : (
               <motion.button
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onSelectSyncFolder}
-                disabled={!isFileSystemSupported}
-                className="shrink-0 rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:bg-pine-700 disabled:opacity-50"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={onInstallPWA}
+                disabled={!canInstallPWA && !onInstallPWA}
+                className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-pine-700 disabled:opacity-50"
               >
-                Select Sync Folder
+                Install App
               </motion.button>
             )}
           </div>
+        </section>
+      )}
 
-          {!isFileSystemSupported && (
-            <div className="mt-3 rounded-xl bg-amber-500/10 p-3 border border-amber-500/20 text-[13px] text-amber-800">
-              Your current browser does not support native folder pickers. You can still use the <strong>Backup & restore (Export/Import)</strong> buttons below to sync data manually!
+      {/* Task Automation */}
+      <section className="mt-10">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Task Automation</h2>
+        <div className="mt-3 divide-y divide-paper-200/80 rounded-2xl border border-paper-200/80 bg-paper-100/40 p-4 sm:p-5 space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-[15px] font-medium text-ink-900">Auto-archive completed tasks</p>
+              <p className="mt-0.5 text-[13px] text-ink-500">
+                Automatically moves done tasks to the Archive in the background.
+              </p>
             </div>
-          )}
-
-          {isSyncActive && (
-            <div className="mt-4 pt-3 border-t border-paper-200/60 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[13px] text-ink-600">
-                <span className="inline-block size-2 rounded-full bg-pine-500 animate-pulse" />
-                <span>Auto-syncing folder. Last check: {lastSyncFormatted || 'Just now'}</span>
-              </div>
-              <button
-                type="button"
-                onClick={onDisconnectSyncFolder}
-                className="text-[12.5px] font-medium text-terra-600 hover:underline"
-              >
-                Disconnect Folder
-              </button>
+            <div className="shrink-0 self-start sm:self-center">
+              <AutoArchivePicker
+                value={currentArchiveDays}
+                onChange={(val) => onUpdateSettings?.({ autoArchiveDays: val })}
+              />
             </div>
-          )}
+          </div>
 
-          {syncErrorMsg && (
-            <p className="mt-2 text-[12.5px] font-medium text-terra-600">{syncErrorMsg}</p>
-          )}
-
-          <div className="mt-3 text-[12.5px] text-ink-400">
-            💡 <strong>How it works:</strong> Click <em>Select Sync Folder</em> and pick your Syncthing shared directory. Tasquera creates and maintains <code className="font-mono">tasquera-sync.json</code> automatically!
+          <div className="pt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <p className="text-[14.5px] font-medium text-ink-800">Manual archive now</p>
+              <p className="mt-0.5 text-[12.5px] text-ink-500">
+                Immediately archive completed tasks older than {currentArchiveDays > 0 ? `${currentArchiveDays} days` : '7 days'}.
+              </p>
+              {archivedCountMsg && <p className="mt-1 text-[12px] font-medium text-pine-400">{archivedCountMsg}</p>}
+            </div>
+            <button
+              type="button"
+              onClick={handleArchiveOld}
+              className="shrink-0 self-start sm:self-center rounded-xl bg-paper-200 px-4 py-2 text-[13.5px] font-medium text-ink-700 transition-colors hover:bg-paper-300 active:bg-paper-400"
+            >
+              Archive older tasks
+            </button>
           </div>
         </div>
       </section>
 
+      {/* Syncthing & Storage Sync */}
+      <section className="mt-10">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">
+          {isNative ? 'Device Storage & Sync' : 'Syncthing & Local Sync'}
+        </h2>
+        <div className="mt-3 overflow-hidden rounded-2xl border border-paper-200/80 bg-paper-100/40 p-4 sm:p-5">
+          {/* Main Card Header */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start sm:items-center gap-3 min-w-0">
+              <div
+                className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                  isSyncActive ? 'bg-pine-500/15 text-pine-400' : 'bg-paper-200 text-ink-400'
+                }`}
+              >
+                <FolderSyncIcon className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[15px] font-semibold text-ink-900 leading-snug">
+                    {isNative ? 'Native Syncthing Sync' : 'Folder Sync Binding'}
+                  </span>
+                  {isSyncActive ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-[11.5px] font-medium text-pine-300 border border-pine-500/30">
+                      <span className="size-1.5 rounded-full bg-pine-400 animate-pulse" />
+                      Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center rounded-full bg-paper-200 px-2.5 py-0.5 text-[11.5px] font-medium text-ink-500">
+                      {isNative ? 'Paused' : 'Not Connected'}
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 text-[12.5px] text-ink-500 leading-normal">
+                  {isNative
+                    ? 'Continuous local sync with your device storage for Syncthing'
+                    : 'Direct bidirectional file sync with your local filesystem'}
+                </p>
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div className="shrink-0 pt-1 sm:pt-0">
+              {isSyncActive ? (
+                <button
+                  type="button"
+                  onClick={onDisconnectSyncFolder}
+                  className="w-full sm:w-auto rounded-xl border border-paper-200 bg-paper-50 px-3.5 py-1.5 text-[13px] font-medium text-terra-600 shadow-2xs transition-colors hover:bg-terra-50 hover:border-terra-200 active:scale-[0.98]"
+                >
+                  {isNative ? 'Pause Sync' : 'Disconnect'}
+                </button>
+              ) : (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={onSelectSyncFolder}
+                  disabled={!isFileSystemSupported && !isNative}
+                  className="w-full sm:w-auto rounded-xl bg-pine-600 px-3.5 py-1.5 text-[13px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 disabled:opacity-50"
+                >
+                  {isNative ? 'Enable Sync' : 'Select Folder'}
+                </motion.button>
+              )}
+            </div>
+          </div>
+
+          {/* Sync Path & Status Info Bar */}
+          <div className="mt-3.5 flex flex-col gap-2 rounded-xl border border-paper-200/60 bg-paper-50/70 px-3 py-2.5 text-[12px] sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="shrink-0 font-medium text-ink-400">Path:</span>
+              <span className="truncate font-mono text-[11.5px] text-ink-800 bg-paper-200/60 px-1.5 py-0.5 rounded">
+                {isNative ? 'Documents/Tsqsync/tasquera-sync.json' : isSyncActive ? 'Linked Folder / tasquera-sync.json' : 'Not linked'}
+              </span>
+            </div>
+            {isSyncActive && (
+              <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-ink-500">
+                <span className="size-1.5 rounded-full bg-pine-500" />
+                {lastSyncFormatted ? `Synced at ${lastSyncFormatted}` : 'Auto-syncing changes'}
+              </span>
+            )}
+          </div>
+
+          {/* Browser Unsupported Warning */}
+          {!isFileSystemSupported && !isNative && (
+            <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+              Your current browser does not support local folder access. You can still use the <strong>Backup & restore</strong> feature below to export and import data manually.
+            </div>
+          )}
+
+          {/* Error Message */}
+          {syncErrorMsg && (
+            <div className="mt-3 rounded-xl border border-terra-500/20 bg-terra-500/10 p-3 text-[12.5px] font-medium text-terra-700">
+              {syncErrorMsg}
+            </div>
+          )}
+
+          {/* Syncthing Guide Card */}
+          <div className="mt-3.5 flex items-start gap-2.5 rounded-xl bg-paper-200/40 p-3 text-[12px] text-ink-600 leading-relaxed">
+            <InfoIcon className="size-4 shrink-0 text-ink-400 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              {isNative ? (
+                <>
+                  <span className="font-semibold text-ink-800">Syncthing Setup:</span> In your Syncthing app on Android, add and share the folder <code className="font-mono text-[11px] text-pine-400 bg-paper-50 px-1 py-0.5 rounded">Documents/Tsqsync/</code>. Tasquera writes and reads state directly from this directory.
+                </>
+              ) : (
+                <>
+                  <span className="font-semibold text-ink-800">How it works:</span> Click <em>Select Folder</em> to bind a folder shared by Syncthing on your machine. Tasquera will read remote updates and write state automatically.
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Interface */}
       <section className="mt-10">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Interface</h2>
         <div className="mt-3 flex items-center justify-between gap-4">
@@ -245,6 +327,7 @@ export default function SettingsView({
         </div>
       </section>
 
+      {/* Keyboard */}
       <section className="mt-10">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Keyboard</h2>
         <div className="mt-3 space-y-2.5">
@@ -254,26 +337,31 @@ export default function SettingsView({
         </div>
       </section>
 
+      {/* Data */}
       <section className="mt-10">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Data</h2>
-        {dataMsg && <p className="mt-2 text-[12px] font-medium text-pine-600">{dataMsg}</p>}
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[15px] text-ink-900">Backup & restore</p>
-            <p className="mt-0.5 text-[13px] text-ink-500">Data lives only in this browser. Export a JSON backup, or restore from one.</p>
+        {dataMsg && <p className="mt-2 text-[12px] font-medium text-pine-400">{dataMsg}</p>}
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] text-ink-900 font-medium">Backup & restore</p>
+            <p className="mt-0.5 text-[13px] text-ink-500">
+              {isNative
+                ? 'Export a snapshot JSON backup, or restore previous tasks from one.'
+                : 'Data lives in this browser. Export a JSON backup, or restore from one.'}
+            </p>
           </div>
-          <div className="flex shrink-0 gap-2">
+          <div className="flex shrink-0 gap-2 self-start sm:self-center">
             <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               onClick={exportData}
               className="rounded-xl bg-paper-200 px-4 py-2 text-[14px] font-medium text-ink-700 transition-colors hover:bg-paper-300"
             >
               Export
             </motion.button>
             <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => fileInputRef.current?.click()}
               className="rounded-xl bg-paper-200 px-4 py-2 text-[14px] font-medium text-ink-700 transition-colors hover:bg-paper-300"
             >
@@ -283,16 +371,16 @@ export default function SettingsView({
           </div>
         </div>
 
-        <div className="mt-6 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[15px] text-ink-900">Clear all tasks</p>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="text-[15px] text-ink-900 font-medium">Clear all tasks</p>
             <p className="mt-0.5 text-[13px] text-ink-500">Removes every task. Boards and lists stay.</p>
           </div>
           <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.95 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
             onClick={clear}
-            className={`shrink-0 rounded-xl px-4 py-2 text-[14px] font-medium transition-colors duration-150 ${
+            className={`shrink-0 self-start sm:self-center rounded-xl px-4 py-2 text-[14px] font-medium transition-colors duration-150 ${
               armed ? 'bg-terra-600 text-[#fbf9f5]' : 'text-terra-600 hover:bg-terra-50'
             }`}
           >
@@ -301,6 +389,7 @@ export default function SettingsView({
         </div>
       </section>
 
+      {/* About & Legal */}
       <section className="mt-10">
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">About & Legal</h2>
         <div className="mt-3 space-y-3 rounded-2xl border border-paper-200/60 bg-paper-100/40 p-4">
@@ -329,6 +418,13 @@ export default function SettingsView({
               className="text-pine-500 transition-colors hover:text-pine-400 hover:underline"
             >
               Privacy Policy
+            </a>
+            <span className="text-paper-300">·</span>
+            <a
+              href="#/licenses"
+              className="text-pine-500 transition-colors hover:text-pine-400 hover:underline"
+            >
+              Open Source Licenses
             </a>
             <span className="text-paper-300">·</span>
             <a

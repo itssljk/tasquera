@@ -99,7 +99,7 @@ function SearchResultItem({
               </span>
             )}
             {task.done && (
-              <span className="rounded bg-pine-500/10 px-1.5 py-0.5 text-[10.5px] font-medium text-pine-600">
+              <span className="rounded bg-pine-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-pine-400">
                 Done
               </span>
             )}
@@ -124,7 +124,7 @@ function SearchResultItem({
                 e.stopPropagation()
                 onTeleport(task)
               }}
-              className="inline-flex items-center gap-1 rounded-md bg-paper-200/90 px-2 py-0.5 text-[11px] font-semibold text-pine-600 transition-colors group-hover:bg-pine-500/15"
+              className="inline-flex items-center gap-1 rounded-md bg-paper-200/90 px-2 py-0.5 text-[11px] font-semibold text-pine-400 transition-colors group-hover:bg-pine-500/15"
             >
               <span>In {locationLabel}</span>
               <ExternalLinkIcon className="size-3 stroke-[2.2]" />
@@ -180,7 +180,7 @@ function SearchResultItem({
 
             {/* Links count */}
             {linksCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/10 px-2 py-0.5 text-[11px] text-pine-600">
+              <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/15 px-2 py-0.5 text-[11px] font-medium text-pine-400">
                 <LinkIcon className="size-3" />
                 <span>{linksCount} link{linksCount > 1 ? 's' : ''}</span>
               </span>
@@ -313,7 +313,7 @@ export default function SearchView(props: SearchViewProps) {
           <div className="py-16 text-center text-ink-500">
             <p className="text-[14px]">Type to search across all your tasks, notes, subtasks, and links.</p>
             <p className="mt-2 text-[12.5px] text-ink-400">
-              Tips: Try searching multi-word phrases, or filters like <code className="rounded bg-paper-200 px-1 py-0.5 text-pine-600">is:done</code>, <code className="rounded bg-paper-200 px-1 py-0.5 text-pine-600">p:urgent</code>, or <code className="rounded bg-paper-200 px-1 py-0.5 text-pine-600">is:archived</code>.
+              Tips: Try searching multi-word phrases, or filters like <code className="rounded bg-paper-200 px-1 py-0.5 text-pine-400 font-mono text-[11.5px]">is:done</code>, <code className="rounded bg-paper-200 px-1 py-0.5 text-pine-400 font-mono text-[11.5px]">p:urgent</code>, or <code className="rounded bg-paper-200 px-1 py-0.5 text-pine-400 font-mono text-[11.5px]">is:archived</code>.
             </p>
           </div>
         ) : results.length === 0 ? (
@@ -329,7 +329,7 @@ export default function SearchView(props: SearchViewProps) {
               <span className="text-[12px] text-ink-400">Click result to teleport to location</span>
             </div>
             <ul className="space-y-2">
-              <AnimatePresence mode="popLayout">
+              <AnimatePresence mode="popLayout" initial={false}>
                 {results.map((r) => (
                   <SearchResultItem
                     key={r.task.id}

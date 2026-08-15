@@ -22,6 +22,10 @@ export function parseRoute(hash: string): Route {
       return { name: 'tos' }
     case 'privacy':
       return { name: 'privacy' }
+    case 'licenses':
+    case 'license':
+    case 'legal':
+      return { name: 'licenses' }
     case 'search':
       return { name: 'search' }
     case 'board':

@@ -24,6 +24,45 @@ npm run typecheck  # TypeScript check
 
 Requires Node 20+ and npm.
 
+## Android App
+
+Tasquera ships as an Android app built with [Capacitor](https://capacitorjs.com).
+
+```bash
+npm run build:apk   # builds web assets, syncs Capacitor, compiles a signed release APK
+```
+
+The generated APK lands at `android/app/build/outputs/apk/release/app-release.apk`, signed with your release keystore. On
+Android, task data lives in the app's private storage, and the optional folder
+sync writes to `Documents/Tsqsync/tasquera-sync.json` (app-created files only;
+point your Syncthing Android app at that folder). Note: on Android the sync file
+lives in the app's scoped storage, which Syncthing may not be able to read
+directly depending on its own file-access settings.
+
+### Release signing
+
+Release builds are signed with the keystore at `android/tasquera-release.keystore`
+(credentials in `android/keystore.properties`). Both files are gitignored — never
+commit them. To create the keystore on a fresh machine:
+
+```bash
+keytool -genkeypair -v -keystore android/tasquera-release.keystore \
+  -alias tasquera -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Then write `android/keystore.properties`:
+
+```
+storeFile=tasquera-release.keystore
+storePassword=YOUR_PASSWORD
+keyAlias=tasquera
+keyPassword=YOUR_PASSWORD
+```
+
+**Back up both files.** Losing the keystore means existing installs can never be
+updated with the same signature, and `build:apk` will fail with instructions if
+they are missing.
+
 ## Tech Stack
 
 - [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org)
@@ -33,7 +72,7 @@ Requires Node 20+ and npm.
 
 ## Data & Privacy
 
-All data is stored locally in your browser (`localStorage` key `tasquera.state.v2`). Clearing browser storage removes your data, so export a backup from Settings first. Image attachments are stored in IndexedDB (referenced by id from your tasks) so they don't count against the localStorage quota, and they're included in backups and in the sync folder's JSON file.
+All data is stored locally on your device — in your browser's `localStorage` (key `tasquera.state.v2`) on the web, or in the app's private storage on Android. Clearing browser storage or uninstalling the app removes your data, so export a backup from Settings first. Image attachments are stored in IndexedDB (referenced by id from your tasks) so they don't count against the localStorage quota, and they're included in backups and in the sync folder's JSON file. No accounts, no servers, no tracking.
 
 ## License
 

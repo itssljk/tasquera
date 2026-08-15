@@ -355,20 +355,22 @@ export default function TaskRow(props: TaskRowProps) {
             </button>
           )}
 
-          {/* Details toggle badge */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setExpanded(!expanded)
-            }}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
-              expanded ? 'bg-pine-500/15 text-pine-600' : 'bg-paper-200/80 text-ink-600 hover:bg-paper-200'
-            }`}
-          >
-            <ChevronIcon className={`size-3 transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
-            <span>{expanded ? 'Hide details' : 'Details'}</span>
-          </button>
+          {/* Details toggle badge - only show if there are details to expand */}
+          {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                setExpanded(!expanded)
+              }}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                expanded ? 'bg-pine-500/15 text-pine-600' : 'bg-paper-200/80 text-ink-600 hover:bg-paper-200'
+              }`}
+            >
+              <ChevronIcon className={`size-3 transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
+              <span>{expanded ? 'Hide details' : 'Details'}</span>
+            </button>
+          )}
 
           {done && task.completedAt && <span className="text-ink-400">Completed {formatDate(task.completedAt)}</span>}
           {meta && <span className="text-ink-400">{meta}</span>}
@@ -460,7 +462,7 @@ export default function TaskRow(props: TaskRowProps) {
                     <button
                       type="button"
                       onClick={() => setShowAddLink(true)}
-                      className="text-[11px] font-medium text-pine-600 hover:text-pine-700 inline-flex items-center gap-0.5"
+                      className="text-[11px] font-medium text-pine-400 hover:text-pine-300 inline-flex items-center gap-0.5"
                     >
                       <PlusIcon className="size-3" />
                       <span>Add link</span>
@@ -539,19 +541,21 @@ export default function TaskRow(props: TaskRowProps) {
       </div>
 
       <div className="flex shrink-0 items-center gap-0.5">
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.92 }}
-          onClick={() => setExpanded(!expanded)}
-          aria-label={expanded ? 'Hide task details' : 'Show task details'}
-          title={expanded ? 'Hide details' : 'Show details'}
-          className={`rounded-lg p-1.5 transition-all duration-150 ${
-            expanded ? 'bg-paper-200 text-pine-600' : 'text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'
-          }`}
-        >
-          <ChevronIcon className={`size-[18px] transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
-        </motion.button>
+        {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setExpanded(!expanded)}
+            aria-label={expanded ? 'Hide task details' : 'Show task details'}
+            title={expanded ? 'Hide details' : 'Show details'}
+            className={`rounded-lg p-1.5 transition-all duration-150 ${
+              expanded ? 'bg-paper-200 text-pine-600' : 'text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'
+            }`}
+          >
+            <ChevronIcon className={`size-[18px] transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
+          </motion.button>
+        )}
         <div className="relative">
           <motion.button
             type="button"
@@ -634,7 +638,7 @@ export default function TaskRow(props: TaskRowProps) {
                 }}
                 className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
                   task.done || task.status === 'done'
-                    ? 'bg-pine-600/20 text-pine-700 font-semibold shadow-2xs'
+                    ? 'bg-pine-500/20 text-pine-400 font-semibold shadow-2xs'
                     : 'text-ink-600 hover:bg-paper-100'
                 }`}
               >
@@ -826,5 +830,9 @@ export default function TaskRow(props: TaskRowProps) {
     )
   }
 
-  return <motion.li {...rowMotionProps}>{rowContent}</motion.li>
+  return (
+    <motion.li {...rowMotionProps} className={rowClass}>
+      {rowContent}
+    </motion.li>
+  )
 }

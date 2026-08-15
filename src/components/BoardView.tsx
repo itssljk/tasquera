@@ -149,14 +149,16 @@ export default function BoardView({
       <motion.div
         layout
         key={t.id}
-        initial={{ opacity: 0, y: 10, scale: 0.96 }}
+        initial={{ opacity: 0, y: 6, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95, y: -6 }}
+        exit={{ opacity: 0, scale: 0.96, y: -4 }}
         transition={{
-          layout: { type: 'spring', stiffness: 400, damping: 30 },
-          opacity: { duration: 0.18 },
+          layout: { type: 'spring', stiffness: 500, damping: 32 },
+          opacity: { duration: 0.15 },
+          y: { duration: 0.15, ease: [0.16, 1, 0.3, 1] },
+          scale: { duration: 0.15, ease: [0.16, 1, 0.3, 1] },
         }}
-        whileHover={{ y: -2, transition: { duration: 0.15 } }}
+        whileHover={{ y: -2, transition: { duration: 0.12 } }}
         className={`group relative rounded-xl bg-paper-50 p-3.5 shadow-xs transition-all duration-150 hover:shadow-md ${
           isDone ? 'opacity-60' : ''
         } ${menuOpen ? 'z-50' : 'z-0'}`}
@@ -189,7 +191,7 @@ export default function BoardView({
 
             <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onEditDetails?.(t)}>
               <span
-                className={`text-[14.5px] leading-snug text-ink-900 transition-colors hover:text-pine-700 ${
+                className={`text-[14.5px] leading-snug text-ink-900 transition-colors hover:text-pine-400 ${
                   isDone ? 'line-through text-ink-400' : ''
                 }`}
               >
@@ -485,7 +487,7 @@ export default function BoardView({
                   }}
                   className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
                     t.done || t.status === 'done'
-                      ? 'bg-pine-600/20 text-pine-700 font-semibold shadow-2xs'
+                      ? 'bg-pine-500/20 text-pine-400 font-semibold shadow-2xs'
                       : 'text-ink-600 hover:bg-paper-100'
                   }`}
                 >
@@ -680,7 +682,7 @@ export default function BoardView({
                   onReorder={(newOrder) => onReorderColumnTasks?.(col.id, newOrder)}
                   className="space-y-2.5"
                 >
-                  <AnimatePresence mode="popLayout">
+                  <AnimatePresence mode="popLayout" initial={false}>
                     {recentTasks.map((t) => (
                       <ReorderableBoardCard key={t.id} task={t} render={renderCard} />
                     ))}
@@ -711,7 +713,7 @@ export default function BoardView({
                           <button
                             type="button"
                             onClick={() => onArchiveOldCompleted(7)}
-                            className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-paper-300 px-3 py-1.5 text-[12px] font-medium text-ink-500 transition-colors hover:border-pine-400 hover:bg-paper-50 hover:text-pine-700"
+                            className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-paper-300 px-3 py-1.5 text-[12px] font-medium text-ink-500 transition-colors hover:border-pine-400 hover:bg-paper-50 hover:text-pine-400"
                           >
                             <ArchiveIcon className="size-3.5" />
                             <span>Archive older done tasks (&gt;7d)</span>
@@ -728,7 +730,7 @@ export default function BoardView({
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => onOpenCreateModal?.(board.id, col.id)}
-                    className="flex w-full items-center gap-1.5 rounded-xl border border-dashed border-paper-300/80 px-3 py-2 text-[13px] text-ink-500 transition-colors hover:border-pine-400 hover:bg-paper-50 hover:text-pine-700"
+                    className="flex w-full items-center gap-1.5 rounded-xl border border-dashed border-paper-300/80 px-3 py-2 text-[13px] text-ink-500 transition-colors hover:border-pine-400 hover:bg-paper-50 hover:text-pine-400"
                   >
                     <PlusIcon className="size-3.5" />
                     <span>Add task</span>

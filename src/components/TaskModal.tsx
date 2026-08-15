@@ -6,6 +6,7 @@ import { putImage, resolveMany } from '../lib/attachments'
 import Dropdown from './Dropdown'
 import DatePicker from './DatePicker'
 import RecurrencePicker from './RecurrencePicker'
+import { useIsDesktop } from '../lib/useMediaQuery'
 import {
   CheckCircleIcon,
   CloseIcon,
@@ -25,6 +26,7 @@ interface TaskModalProps {
   taskToEdit?: Task | null
   defaultListId?: string | null
   defaultStatus?: TaskStatus
+  defaultDueDate?: string | null
   collections: Collection[]
   onClose: () => void
   onSave: (taskData: Partial<Task> & { title: string }) => void
@@ -42,7 +44,16 @@ const insetInput =
   'w-full rounded-lg bg-paper-50 px-3 py-2 text-[13.5px] text-ink-900 outline-none ring-2 ring-transparent transition-shadow duration-150 focus:ring-pine-500/25 placeholder:text-ink-400'
 
 export default function TaskModal(props: TaskModalProps) {
-  const { isOpen, taskToEdit, defaultListId = null, defaultStatus = 'todo', collections, onClose, onSave } = props
+  const {
+    isOpen,
+    taskToEdit,
+    defaultListId = null,
+    defaultStatus = 'todo',
+    defaultDueDate = null,
+    collections,
+    onClose,
+    onSave,
+  } = props
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -88,7 +99,7 @@ export default function TaskModal(props: TaskModalProps) {
         setStatus(defaultStatus)
         setPriority('medium')
         setRecurrence(null)
-        setDueDate('')
+        setDueDate(defaultDueDate || '')
         setDeadline('')
         setSubtasks([])
         setLinks([])
@@ -104,7 +115,7 @@ export default function TaskModal(props: TaskModalProps) {
       setIsDraggingOver(false)
       void resolveMany(taskToEdit?.images ?? []).then(setImageUrls)
     }
-  }, [isOpen, taskToEdit, defaultListId, defaultStatus])
+  }, [isOpen, taskToEdit, defaultListId, defaultStatus, defaultDueDate])
 
   if (!isOpen) return null
 
@@ -274,27 +285,30 @@ export default function TaskModal(props: TaskModalProps) {
     })
   }
 
+  const isDesktop = useIsDesktop()
   const doneSubtasksCount = subtasks.filter((s) => s.done).length
   const showLinks = links.length > 0 || showAddLink
   const showImages = images.length > 0 || showAddImage
   const priorityStyle = PRIORITIES.find((p) => p.id === priority) ?? PRIORITIES[1]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+    <>
       <motion.div
+        key="taskmodal-backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.18 }}
-        className="fixed inset-0 bg-[#0c0b0a]/75 backdrop-blur-sm"
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-50 bg-[#0c0b0a]/70 backdrop-blur-sm"
         onClick={onClose}
       />
 
       <motion.div
-        initial={{ opacity: 0, scale: 0.97, y: 12 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.98, y: 8 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+        key="taskmodal-panel"
+        initial={isDesktop ? { x: '100%' } : { y: '100%' }}
+        animate={isDesktop ? { x: 0 } : { y: 0 }}
+        exit={isDesktop ? { x: '100%' } : { y: '100%' }}
+        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
         onKeyDown={handleKeyDown}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -303,23 +317,33 @@ export default function TaskModal(props: TaskModalProps) {
         role="dialog"
         aria-modal="true"
         aria-label={taskToEdit ? 'Edit task' : 'New task'}
-        className="relative z-10 my-auto w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl bg-paper-100 shadow-[0_32px_90px_-20px_rgba(0,0,0,0.9)] overflow-hidden text-ink-900"
+        className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
+          isDesktop
+            ? 'inset-y-0 right-0 w-full max-w-[560px] border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
+            : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)] pb-[env(safe-area-inset-bottom,0px)]'
+        }`}
       >
-        <div className="flex-1 overflow-y-auto px-7 py-6">
-          {/* Eyebrow + close */}
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-              {taskToEdit ? 'Edit Task' : 'New Task'}
-            </span>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close dialog"
-              className="rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900"
-            >
-              <CloseIcon className="size-[18px]" />
-            </button>
-          </div>
+        {/* Mobile grab handle */}
+        <div className="flex w-full justify-center pt-2.5 pb-1 md:hidden">
+          <div className="h-1 w-10 rounded-full bg-ink-300/50" />
+        </div>
+
+        {/* Drawer Header */}
+        <div className="flex items-center justify-between border-b border-paper-200/60 px-6 sm:px-7 py-3 sm:py-3.5">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+            {taskToEdit ? 'Edit Task' : 'New Task'}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close drawer"
+            className="rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900"
+          >
+            <CloseIcon className="size-[18px]" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-6 sm:px-7 py-5">
 
           {/* Title */}
           <input
@@ -687,7 +711,7 @@ export default function TaskModal(props: TaskModalProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center rounded-2xl bg-paper-100/95 p-6 text-center backdrop-blur-xs border-2 border-dashed border-pine-500"
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-paper-100/95 p-6 text-center backdrop-blur-xs border-2 border-dashed border-pine-500"
             >
               <PaperclipIcon className="mb-2 size-10 animate-bounce text-pine-600" />
               <p className="text-[17px] font-bold text-ink-900">Drop images here</p>
@@ -696,8 +720,8 @@ export default function TaskModal(props: TaskModalProps) {
           )}
         </AnimatePresence>
 
-        {/* Footer actions */}
-        <div className="flex items-center justify-between gap-4 px-7 pb-5 pt-2">
+        {/* Sticky footer actions */}
+        <div className="sticky bottom-0 z-20 flex items-center justify-between gap-4 border-t border-paper-200/70 bg-paper-100/95 px-6 sm:px-7 py-3.5 backdrop-blur-xs">
           <span className="hidden text-[12px] text-ink-400 sm:block">
             Press{' '}
             <kbd className="rounded-md bg-paper-200 px-1.5 py-0.5 font-sans text-[10.5px] font-medium text-ink-500">
@@ -705,18 +729,18 @@ export default function TaskModal(props: TaskModalProps) {
             </kbd>{' '}
             to save
           </span>
-          <div className="ml-auto flex items-center gap-1.5">
+          <div className="ml-auto flex items-center gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg px-3.5 py-2 text-[14px] font-medium text-ink-500 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900"
+              className="rounded-xl px-4 py-2 text-[14px] font-medium text-ink-600 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900 active:scale-98"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => handleFormSubmit()}
-              className="rounded-lg bg-pine-600 px-4 py-2 text-[14px] font-medium text-[#fbf9f5] shadow-xs transition-all duration-150 hover:bg-pine-700 active:scale-95"
+              className="rounded-xl bg-pine-600 px-5 py-2 text-[14px] font-semibold text-[#fbf9f5] shadow-xs transition-all duration-150 hover:bg-pine-700 active:scale-95"
             >
               {taskToEdit ? 'Save Changes' : 'Create Task'}
             </button>
@@ -738,6 +762,6 @@ export default function TaskModal(props: TaskModalProps) {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </>
   )
 }

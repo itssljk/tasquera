@@ -3,14 +3,14 @@ import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckIcon, ChevronIcon } from './icons'
 
-export interface DropdownOption<T extends string> {
+export interface DropdownOption<T extends string | number> {
   value: T
   label: string
   /** Optional text color class for the option label, e.g. priority colors */
   textClass?: string
 }
 
-interface DropdownProps<T extends string> {
+interface DropdownProps<T extends string | number> {
   value: T
   options: DropdownOption<T>[]
   onChange: (value: T) => void
@@ -18,15 +18,24 @@ interface DropdownProps<T extends string> {
   icon?: ReactNode
   /** Text color class for the current value shown in the trigger */
   valueTextClass?: string
+  /** Custom trigger className */
+  triggerClass?: string
+  /** Alignment of the menu relative to trigger */
+  align?: 'left' | 'right'
+  /** Custom menu className */
+  menuClass?: string
 }
 
-export default function Dropdown<T extends string>({
+export default function Dropdown<T extends string | number>({
   value,
   options,
   onChange,
   ariaLabel,
   icon,
   valueTextClass,
+  triggerClass,
+  align = 'left',
+  menuClass,
 }: DropdownProps<T>) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -80,7 +89,10 @@ export default function Dropdown<T extends string>({
         aria-label={ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
-        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors duration-150 hover:bg-paper-200/60"
+        className={
+          triggerClass ??
+          'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors duration-150 hover:bg-paper-200/60'
+        }
       >
         {icon}
         <span className={`font-medium ${valueTextClass ?? 'text-ink-900'}`}>{selected?.label ?? value}</span>
@@ -98,7 +110,9 @@ export default function Dropdown<T extends string>({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 3, scale: 0.98 }}
             transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
-            className="absolute left-0 top-full z-30 mt-1.5 max-h-64 min-w-[168px] overflow-y-auto rounded-xl bg-paper-200 p-1 shadow-[0_18px_48px_-12px_rgba(0,0,0,0.85)] ring-1 ring-paper-300/60"
+            className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-full z-30 mt-1.5 max-h-64 min-w-[168px] overflow-y-auto rounded-xl bg-paper-200 p-1 shadow-[0_18px_48px_-12px_rgba(0,0,0,0.85)] ring-1 ring-paper-300/60 ${
+              menuClass ?? ''
+            }`}
           >
             {options.map((opt, i) => (
               <li key={opt.value} role="option" aria-selected={opt.value === value}>

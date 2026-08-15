@@ -1,5 +1,6 @@
 node_modules
 dist
+out
 preview.html
 *.local
 
@@ -13,7 +14,7 @@ preview.html
 .DS_Store
 Thumbs.db
 
-# Design documentation
+# Design documentation (personal working notes)
 DESIGN.md
 DESIGN-GUIDE.md
 
@@ -22,4 +23,27 @@ DESIGN-GUIDE.md
 .env.*
 !.env.example
 
+# Editor / IDE
+.idea/
+.vscode/
+*.iml
 
+# Logs
+*.log
+
+# Capacitor / Android
+android/app/build/
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/build/
+android/captures/
+android/.idea/
+
+# ── Release signing — NEVER commit these ─────────────────────────────
+# The release keystore is the only thing that cannot be regenerated:
+# losing it makes every existing install un-updatable, and committing it
+# would let anyone sign updates for the app. Back it up offline.
+android/keystore.properties
+android/*.keystore
+android/*.jks

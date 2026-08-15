@@ -78,7 +78,7 @@ function NavLink({
           className="absolute inset-0 rounded-xl bg-paper-50 shadow-2xs"
         />
       )}
-      <span className={`relative z-10 shrink-0 transition-colors ${active ? 'text-pine-600' : 'text-ink-400'}`}>{icon}</span>
+      <span className={`relative z-10 shrink-0 transition-colors ${active ? 'text-pine-400' : 'text-ink-400'}`}>{icon}</span>
       <span className="relative z-10 min-w-0 flex-1 truncate">{label}</span>
       {count !== undefined && count > 0 && (
         <span className="relative z-10 shrink-0 text-[12.5px] tabular-nums text-ink-400">{count}</span>
@@ -378,7 +378,7 @@ export default function Sidebar(props: SidebarProps) {
 
   return (
     <aside ref={rootRef} className="flex h-full w-64 shrink-0 flex-col bg-paper-100 border-r border-paper-200/40">
-      <div className="flex items-center gap-2.5 px-4 pb-1 pt-5">
+      <div className="flex items-center gap-2.5 px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] md:pt-5">
         <LogoMark className="size-6" />
         <button
           type="button"
@@ -403,7 +403,7 @@ export default function Sidebar(props: SidebarProps) {
           <PlusIcon className="size-[18px] shrink-0 stroke-[2.2]" />
           <span className="min-w-0 flex-1">New task</span>
           {!showQuickAdd && (
-            <kbd className="hidden rounded bg-pine-700/60 px-1.5 py-0.5 font-sans text-[11px] font-medium text-pine-100 sm:inline-block">
+            <kbd className="hidden rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white/90 border border-white/10 sm:inline-block shadow-2xs">
               /
             </kbd>
           )}
@@ -477,7 +477,7 @@ export default function Sidebar(props: SidebarProps) {
           <NavLink href="#/archive" active={route.name === 'archive'} icon={<ArchiveIcon className="size-[18px]" />} label="Archive" onClick={onNavigate} />
         </div>
 
-        <div className="pt-4 border-t border-paper-200/40 mt-3 space-y-1">
+        <div className="pt-4 border-t border-paper-200/40 mt-3 space-y-1 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-1">
           {canInstallPWA && onInstallPWA && (
             <SidebarInstallButton onClick={onInstallPWA} />
           )}

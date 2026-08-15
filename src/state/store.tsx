@@ -11,6 +11,7 @@ const LEGACY_KEY = 'tasquera.tasks.v1'
 
 const DEFAULT_SETTINGS: AppSettings = {
   showQuickAdd: false,
+  autoArchiveDays: 7,
 }
 
 interface Persisted {
@@ -99,6 +100,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // storage unavailable — keep state in memory
     }
   }, [state])
+
+  // Automatically archive completed tasks older than the configured threshold (default 7 days)
+  useEffect(() => {
+    const runAutoArchive = () => {
+      const days = state.settings?.autoArchiveDays ?? 7
+      if (days <= 0) return
+
+      const cutoff = Date.now() - days * 86400000
+      setState((prev) => {
+        let hasChanges = false
+        const updatedTasks = prev.tasks.map((t) => {
+          if (!t.archived && t.done && (t.completedAt ?? t.createdAt) < cutoff) {
+            hasChanges = true
+            return { ...t, archived: true, updatedAt: Date.now() }
+          }
+          return t
+        })
+        return hasChanges ? { ...prev, tasks: updatedTasks } : prev
+      })
+    }
+
+    runAutoArchive()
+    const interval = setInterval(runAutoArchive, 1000 * 60 * 60) // Check every hour
+    return () => clearInterval(interval)
+  }, [state.settings?.autoArchiveDays])
 
   const commitState = (updater: (prev: Persisted) => Persisted) => {
     setState((prev) => {

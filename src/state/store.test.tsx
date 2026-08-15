@@ -84,6 +84,24 @@ describe('store', () => {
     expect(result.current.tasks[0].status).toBe('todo')
   })
 
+  it('stops spawning when recurrence count reaches endCount limit', () => {
+    const { result } = setup()
+    act(() =>
+      result.current.addTask({
+        title: 'Limited chore',
+        recurrence: { rule: 'daily', endCondition: { type: 'count', endCount: 1 } },
+        dueDate: '2026-08-13',
+      })
+    )
+    const id = result.current.tasks[0].id
+
+    // Complete the task -> since endCount is 1 and occurrenceIndex is 1, no new task is spawned
+    act(() => result.current.toggleTask(id))
+    act(() => result.current.toggleTask(id))
+    expect(result.current.tasks).toHaveLength(1)
+    expect(result.current.tasks[0].status).toBe('done')
+  })
+
   it('records a tombstone on delete and clears it on undo', () => {
     const { result } = setup()
     act(() => result.current.addTask('Hello'))

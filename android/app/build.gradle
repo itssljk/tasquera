@@ -1,0 +1,102 @@
+apply plugin: 'com.android.application'
+
+// Release signing. Reads android/keystore.properties (gitignored — never
+// commit it). The keystore itself lives at android/tasquera-release.keystore
+// (also gitignored). Debug builds are unaffected and keep using the debug key.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
+// App version follows the web app's package.json version (e.g. 0.4.0),
+// passed in by build-apk.ps1 as -PappVersionName. Falls back to 0.4.0.
+// versionCode is derived: major*10000 + minor*100 + patch (0.4.0 -> 400).
+def appVersionName = project.hasProperty('appVersionName') && project.property('appVersionName')
+        ? project.property('appVersionName').toString()
+        : '0.4.0'
+def versionMatch = (appVersionName =~ /(\d+)\.(\d+)(?:\.(\d+))?/)
+def appVersionCode = 1
+if (versionMatch.find()) {
+    def major = versionMatch.group(1) as int
+    def minor = versionMatch.group(2) as int
+    def patch = versionMatch.group(3) ? versionMatch.group(3) as int : 0
+    appVersionCode = major * 10000 + minor * 100 + patch
+}
+
+android {
+    namespace = "com.itssljk.tasquera"
+    compileSdk = rootProject.ext.compileSdkVersion
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
+    defaultConfig {
+        applicationId "com.itssljk.tasquera"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode appVersionCode
+        versionName appVersionName
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+// Fail release builds with a clear message when the keystore is missing,
+// instead of silently producing an unsigned APK.
+gradle.taskGraph.whenReady { graph ->
+    if (graph.allTasks.any { it.name.contains('Release') } && !keystorePropertiesFile.exists()) {
+        throw new GradleException(
+            'Release signing requires android/keystore.properties and ' +
+            'android/tasquera-release.keystore. Create them with: ' +
+            'keytool -genkeypair -v -keystore android/tasquera-release.keystore ' +
+            '-alias tasquera -keyalg RSA -keysize 2048 -validity 10000, then write ' +
+            'android/keystore.properties with storeFile/storePassword/keyAlias/keyPassword.')
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

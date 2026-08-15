@@ -1,8 +1,12 @@
 # Third-Party Notices
 
 Tasquera bundles the following third-party software and fonts. Their licenses
-are reproduced below as required. All packages are also declared in
+are reproduced below as required. All npm packages are also declared in
 `package.json` / `package-lock.json`.
+
+This file ships with the app: it is embedded in the application binary and
+available in-app under **Settings → About & Legal → Open Source Licenses**, and
+a copy is placed in the production build output (`dist/THIRD_PARTY_NOTICES.md`).
 
 | Package | Version | License | Copyright |
 |---|---|---|---|
@@ -11,11 +15,22 @@ are reproduced below as required. All packages are also declared in
 | canvas-confetti | 1.9.x | ISC | Kiril Vatev |
 | Figtree (Variable) | 5.x | SIL OFL 1.1 | The Figtree Project Authors |
 | Instrument Serif | 5.x | SIL OFL 1.1 | The Instrument Serif Project Authors |
-| Tailwind CSS | 4.x | MIT | Tailwind Labs Inc. |
-| Vite | 8.x | MIT | VoidZero Inc. and contributors |
-| vite-plugin-pwa | 1.3.x | MIT | Anthony Fu |
+| @capacitor/core | 8.x | MIT | Drifty Co. (2017-present) |
+| @capacitor/filesystem | 8.x | MIT | Ionic (2025) |
+| @capacitor/status-bar | 8.x | MIT | Ionic |
+| @capacitor/synapse | 1.x | MIT * | Ionic (2025) |
+| tslib | 2.x | 0BSD | Microsoft Corporation |
+| @capacitor/android (Android APK) | 8.x | MIT | Drifty Co. (2017-present) |
+| AndroidX libraries (Android APK) | — | Apache-2.0 | The Android Open Source Project |
+| Tailwind CSS | 4.x | MIT | Tailwind Labs Inc. (build-time tooling) |
+| Vite | 8.x | MIT | VoidZero Inc. and contributors (build-time tooling) |
+| vite-plugin-pwa | 1.3.x | MIT | Anthony Fu (build-time tooling) |
 | Workbox (bundled into the service worker) | 7.4.x | MIT | Google LLC |
 | TypeScript | 7.x | Apache-2.0 | Microsoft Corporation (dev only) |
+
+\* `@capacitor/synapse` declares `ISC` in its `package.json` but ships an MIT
+LICENSE file (`Copyright (c) 2025 Ionic`). We attribute it as MIT per the
+license text actually shipped with the package.
 
 ---
 
@@ -117,8 +132,8 @@ OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
 COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
 INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
 DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
-FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
-OTHER DEALINGS IN THE FONT SOFTWARE.
+FROM, OUT OF OR IN CONNECTION WITH THE USE OR INABILITY TO USE THE FONT
+SOFTWARE OR FROM OTHER DEALINGS IN THE FONT SOFTWARE.
 
 ---
 
@@ -156,6 +171,42 @@ SOFTWARE.
 MIT License
 
 Copyright (c) Framer B.V.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+---
+
+## MIT License — Capacitor
+
+`@capacitor/core` and `@capacitor/android` are distributed under the MIT
+License, `Copyright (c) 2017-present Drifty Co.` `@capacitor/filesystem` and
+`@capacitor/status-bar` are distributed under the MIT License, `Copyright (c)
+Ionic` / `Copyright (c) 2020-present Ionic`. `@capacitor/android` is compiled
+into the Android APK; the core packages are bundled into the web assets.
+
+```
+MIT License
+
+Copyright (c) 2017-present Drifty Co.
+Copyright (c) 2025 Ionic
+Copyright (c) 2020-present Ionic
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -244,9 +295,59 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## Apache License 2.0 — TypeScript
+## 0BSD License — tslib
+
+`tslib` (Copyright Microsoft Corporation) is distributed under the
+0BSD (Zero-Clause BSD) License, which imposes no conditions beyond the
+disclaimer:
+
+```
+Copyright (C) Microsoft Corporation
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+```
+
+---
+
+## Apache License 2.0 — TypeScript & AndroidX
 
 TypeScript is a development-only dependency (never shipped in the built app)
 and is licensed under the Apache License, Version 2.0, Copyright Microsoft
 Corporation. A copy of the license is included in the TypeScript package in
 `node_modules/typescript/LICENSE.txt`.
+
+The Android APK additionally compiles the following AndroidX libraries
+(androidx.appcompat, androidx.core, androidx.coordinatorlayout,
+androidx.fragment, androidx.webkit, androidx.activity, androidx.core:core-splashscreen),
+each licensed under the Apache License, Version 2.0, Copyright The Android
+Open Source Project. The full Apache-2.0 license text and any applicable
+NOTICE files are distributed inside the respective libraries in
+`android/` (via Gradle) and in the Android SDK; a copy of the license is
+available at https://www.apache.org/licenses/LICENSE-2.0.
+
+```
+Apache License
+Version 2.0, January 2004
+http://www.apache.org/licenses/
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
