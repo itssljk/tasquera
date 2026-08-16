@@ -138,4 +138,91 @@ describe('store', () => {
     expect(result.current.tasks).toHaveLength(0)
     expect(result.current.canUndo).toBe(false)
   })
+
+  it('adds and toggles favorite status on collections', () => {
+    const { result } = setup()
+    act(() => result.current.addCollection('board', 'Project Alpha'))
+    act(() => result.current.addCollection('board', 'Project Beta'))
+    // addCollection prepends: [Beta, Alpha]
+    const alphaId = result.current.collections[1].id
+    expect(result.current.collections[1].favorite).toBe(false)
+
+    // Favoriting pins the collection to the top and bumps updatedAt so the
+    // pinned state propagates to other devices via the newest-wins sync merge.
+    const originalUpdatedAt = result.current.collections[1].updatedAt ?? 0
+    act(() => result.current.toggleFavoriteCollection(alphaId))
+    expect(result.current.collections[0].id).toBe(alphaId)
+    expect(result.current.collections[0].favorite).toBe(true)
+    expect(result.current.collections[0].updatedAt).toBeGreaterThan(originalUpdatedAt)
+
+    act(() => result.current.toggleFavoriteCollection(alphaId))
+    const alpha = result.current.collections.find((c) => c.id === alphaId)!
+    expect(alpha.favorite).toBe(false)
+  })
+
+  it('preserves favorites and pinned order through an export/import round trip', async () => {
+    const { result } = setup()
+    act(() => result.current.addCollection('board', 'Alpha'))
+    act(() => result.current.addCollection('list', 'Beta'))
+    act(() => result.current.addCollection('board', 'Gamma'))
+    // Array after prepends: [Gamma, Beta, Alpha]
+    const alphaId = result.current.collections.find((c) => c.name === 'Alpha')!.id
+    const betaId = result.current.collections.find((c) => c.name === 'Beta')!.id
+    act(() => result.current.toggleFavoriteCollection(betaId)) // [Beta(fav), Gamma, Alpha]
+    act(() => result.current.toggleFavoriteCollection(alphaId)) // [Alpha(fav), Beta(fav), Gamma]
+
+    const exported = await result.current.exportData()
+
+    localStorage.clear()
+    const { result: fresh } = setup()
+    await act(async () => {
+      expect(await fresh.current.importData(exported)).toBe(true)
+    })
+    expect(fresh.current.collections.map((c) => c.name)).toEqual(['Alpha', 'Beta', 'Gamma'])
+    expect(fresh.current.collections.map((c) => c.favorite)).toEqual([true, true, false])
+  })
+
+  it('reorders non-favorited collections while leaving favorited ones in place', () => {
+    const { result } = setup()
+    act(() => result.current.addCollection('board', 'B1'))
+    act(() => result.current.addCollection('board', 'B2'))
+    act(() => result.current.addCollection('board', 'B3'))
+    // Array order after prepends: [B3, B2, B1]; favoriting B2 pins it to the front.
+    act(() => result.current.toggleFavoriteCollection(result.current.collections[1].id))
+    expect(result.current.collections.map((c) => c.name)).toEqual(['B2', 'B3', 'B1'])
+
+    // Reorder the two non-favorited boards: [B1, B3]
+    act(() =>
+      result.current.reorderCollections('board', [
+        result.current.collections[2],
+        result.current.collections[1],
+      ])
+    )
+
+    expect(result.current.collections.map((c) => c.name)).toEqual(['B2', 'B1', 'B3'])
+    expect(result.current.collections[0].favorite).toBe(true)
+  })
+
+  it('reorders favorites independently of other collections', () => {
+    const { result } = setup()
+    act(() => result.current.addCollection('board', 'A'))
+    act(() => result.current.addCollection('list', 'B'))
+    act(() => result.current.addCollection('board', 'C'))
+    // Array: [C, B, A]. Favorite C (front), then A (pins above C).
+    act(() => result.current.toggleFavoriteCollection(result.current.collections[0].id))
+    act(() => result.current.toggleFavoriteCollection(result.current.collections[2].id))
+    expect(result.current.collections.map((c) => c.name)).toEqual(['A', 'C', 'B'])
+
+    // Drag favorites to [C, A] — B (not favorited) stays untouched in place.
+    act(() =>
+      result.current.reorderFavorites([
+        result.current.collections[1],
+        result.current.collections[0],
+      ])
+    )
+
+    expect(result.current.collections.map((c) => c.name)).toEqual(['C', 'A', 'B'])
+    expect(result.current.collections[2].name).toBe('B')
+    expect(result.current.collections[2].favorite).toBe(false)
+  })
 })

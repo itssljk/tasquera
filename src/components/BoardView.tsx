@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
@@ -51,7 +51,37 @@ const COLUMNS: { id: TaskStatus; label: string; dot: string }[] = [
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
-function ReorderableBoardCard({ task, render }: { task: Task; render: (t: Task) => ReactNode }) {
+export function taskStatusOf(task: Task): TaskStatus {
+  if (task.done || task.status === 'done') return 'done'
+  if (task.status === 'in_progress') return 'in_progress'
+  return 'todo'
+}
+
+interface DragPoint {
+  x: number
+  y: number
+}
+
+/**
+ * A draggable board card. Reordering within a column is handled by the
+ * parent Reorder.Group; cross-column moves are detected here while dragging
+ * via the onDrag/onDragEnd callbacks (pointer-based, works on mouse and
+ * touch), which report the pointer position to the board so it can highlight
+ * and drop into other columns.
+ */
+function ReorderableBoardCard({
+  task,
+  render,
+  onDragStart,
+  onDrag,
+  onDragEnd,
+}: {
+  task: Task
+  render: (t: Task) => ReactNode
+  onDragStart: (task: Task) => void
+  onDrag: (task: Task, point: DragPoint) => void
+  onDragEnd: (task: Task, point: DragPoint) => void
+}) {
   const longPress = useLongPressDrag()
   const { isTouch, isDragging } = longPress
   return (
@@ -59,8 +89,15 @@ function ReorderableBoardCard({ task, render }: { task: Task; render: (t: Task) 
       value={task}
       dragListener={!isTouch}
       dragControls={longPress.controls}
-      onDragStart={longPress.onDragStart}
-      onDragEnd={longPress.onDragEnd}
+      onDragStart={() => {
+        longPress.onDragStart()
+        onDragStart(task)
+      }}
+      onDrag={(_, info) => onDrag(task, info.point)}
+      onDragEnd={(_, info) => {
+        longPress.onDragEnd()
+        onDragEnd(task, info.point)
+      }}
       {...(isTouch ? longPress.dragProps : {})}
       className={`list-none ${isDragging ? 'opacity-60' : ''} coarse:select-none coarse:[-webkit-touch-callout:none]`}
     >
@@ -113,16 +150,49 @@ export default function BoardView({
     })
   }
 
-  const handleDrop = (e: React.DragEvent, status: TaskStatus) => {
-    e.preventDefault()
-    setDragOverCol(null)
-    const taskId = e.dataTransfer.getData('text/plain')
-    if (taskId) {
-      if (status === 'done') {
-        triggerTaskConfetti(e.currentTarget as HTMLElement)
+  // Pointer-based cross-column drag detection (replaces the old HTML5
+  // drag-and-drop handlers, which could never fire because cards aren't
+  // draggable sources). While a card is dragged, its pointer position is
+  // mapped to whichever column's bounding box contains it.
+  const columnsAreaRef = useRef<HTMLDivElement>(null)
+
+  const findColumnAt = (point: DragPoint): TaskStatus | null => {
+    const area = columnsAreaRef.current
+    if (!area) return null
+    // framer-motion's drag info.point is in page coordinates (pageX/pageY),
+    // while getBoundingClientRect is in viewport coordinates — subtract the
+    // document scroll so the hit test stays correct when the board is scrolled.
+    const clientX = point.x - (window.scrollX || 0)
+    const clientY = point.y - (window.scrollY || 0)
+    const cols = area.querySelectorAll<HTMLElement>('[data-col]')
+    for (const el of Array.from(cols)) {
+      const r = el.getBoundingClientRect()
+      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+        return (el.dataset.col as TaskStatus) ?? null
       }
-      onUpdate(taskId, { status })
     }
+    return null
+  }
+
+  const handleCardDragStart = (_task: Task) => {
+    // Nothing to record yet — column highlighting happens in onDrag.
+  }
+
+  const handleCardDrag = (_task: Task, point: DragPoint) => {
+    const over = findColumnAt(point)
+    setDragOverCol((prev) => (prev === over ? prev : over))
+  }
+
+  const handleCardDragEnd = (task: Task, point: DragPoint) => {
+    const target = findColumnAt(point)
+    setDragOverCol(null)
+    if (!target) return
+    if (target === taskStatusOf(task)) return
+    if (target === 'done') {
+      const colEl = columnsAreaRef.current?.querySelector(`[data-col="${target}"]`)
+      triggerTaskConfetti((colEl as HTMLElement) ?? null)
+    }
+    onUpdate(task.id, { status: target })
   }
 
   const handleToggleClick = (e: MouseEvent<HTMLButtonElement>, task: Task) => {
@@ -281,32 +351,32 @@ export default function BoardView({
                     className="overflow-hidden"
                   >
                     <div
-                      className="mt-3 space-y-2.5 rounded-lg bg-paper-200/40 p-2.5 text-[12.5px] border border-paper-200/60"
+                      className="mt-3 space-y-3 rounded-xl bg-paper-200/50 p-3 text-[14px]"
                       onClick={(e) => e.stopPropagation()}
                     >
                     {/* Description */}
                     {t.description && (
-                      <div className="space-y-0.5">
-                        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ink-400">Description</span>
-                        <p className="text-[12.5px] leading-relaxed text-ink-800 whitespace-pre-wrap">{t.description}</p>
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Description</span>
+                        <p className="text-[14px] leading-relaxed text-ink-900 whitespace-pre-wrap">{t.description}</p>
                       </div>
                     )}
 
                     {/* Subtasks Section with Animated Progress Bar */}
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ink-400">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">
                           Subtasks {subtasksCount > 0 && `(${subtasksDoneCount}/${subtasksCount})`}
                         </span>
                         {subtasksCount > 0 && (
-                          <span className="text-[10px] font-semibold text-pine-600">
+                          <span className="text-[11.5px] font-semibold text-pine-600">
                             {Math.round((subtasksDoneCount / subtasksCount) * 100)}%
                           </span>
                         )}
                       </div>
 
                       {subtasksCount > 0 && (
-                        <div className="h-1 w-full overflow-hidden rounded-full bg-paper-200">
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-paper-200">
                           <motion.div
                             className="h-full rounded-full bg-pine-600"
                             initial={{ width: 0 }}
@@ -319,7 +389,7 @@ export default function BoardView({
                       {subtasksCount > 0 && (
                         <div className="space-y-1 pt-0.5">
                           {t.subtasks?.map((s) => (
-                            <div key={s.id} className="flex items-center gap-2 text-[12px]">
+                            <div key={s.id} className="flex min-h-[36px] items-center gap-2.5 rounded-lg px-2 py-1 hover:bg-paper-100/50 transition-colors text-[14px]">
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -335,11 +405,11 @@ export default function BoardView({
                                   }
                                   onUpdate(t.id, { subtasks: newSubtasks, status: newStatus, done: newStatus === 'done' })
                                 }}
-                                className={`flex size-3.5 shrink-0 items-center justify-center rounded transition-colors ${
+                                className={`flex size-4.5 shrink-0 items-center justify-center rounded-md transition-colors ${
                                   s.done ? 'bg-pine-600 text-paper-50' : 'border border-ink-400/50 hover:border-pine-500'
                                 }`}
                               >
-                                {s.done && <CheckIcon className="size-2" />}
+                                {s.done && <CheckIcon className="size-2.5" />}
                               </button>
                               <span className={s.done ? 'line-through text-ink-400' : 'text-ink-900'}>{s.title}</span>
                             </div>
@@ -359,22 +429,22 @@ export default function BoardView({
                           onUpdate(t.id, { subtasks: updated })
                           input.value = ''
                         }}
-                        className="flex items-center gap-1.5 pt-0.5"
+                        className="flex items-center gap-2 rounded-lg bg-paper-100/60 px-2.5 py-1.5 pt-1 focus-within:bg-paper-100 focus-within:ring-1 focus-within:ring-pine-500/30 transition-all"
                       >
-                        <PlusIcon className="size-3 shrink-0 text-ink-400" />
+                        <PlusIcon className="size-3.5 shrink-0 text-ink-400" />
                         <input
                           name="cardSubtask"
                           type="text"
                           placeholder="Add subtask…"
-                          className="w-full bg-transparent text-[11.5px] text-ink-900 placeholder:text-ink-400 outline-none"
+                          className="w-full bg-transparent text-[13.5px] text-ink-900 placeholder:text-ink-400 outline-none"
                         />
                       </form>
                     </div>
 
                     {/* Links */}
                     {linksCount > 0 && (
-                      <div className="space-y-1">
-                        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ink-400">Links</span>
+                      <div className="space-y-1.5 pt-1 border-t border-paper-200/40">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Links</span>
                         <div className="flex flex-wrap gap-1.5">
                           {t.links?.map((l) => (
                             <a
@@ -383,7 +453,7 @@ export default function BoardView({
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1 rounded bg-paper-100 px-2 py-1 text-[11.5px] font-medium text-pine-600 shadow-2xs hover:bg-pine-500/10 transition-colors"
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-paper-100 px-2.5 py-1.5 text-[12.5px] font-medium text-pine-500 hover:bg-pine-500/10 transition-colors"
                             >
                               <ExternalLinkIcon className="size-3" />
                               <span>{l.title || l.url}</span>
@@ -395,9 +465,9 @@ export default function BoardView({
 
                     {/* Images */}
                     {imagesCount > 0 && (
-                      <div className="space-y-1">
-                        <span className="text-[9.5px] font-semibold uppercase tracking-wider text-ink-400">Images</span>
-                        <ImageThumbs refs={t.images ?? []} onPreview={setLightboxImage} imgClassName="size-14" gapClassName="gap-1.5" />
+                      <div className="space-y-1.5 pt-1 border-t border-paper-200/40">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">Images</span>
+                        <ImageThumbs refs={t.images ?? []} onPreview={setLightboxImage} imgClassName="size-16 rounded-lg" gapClassName="gap-2" />
                       </div>
                     )}
                     </div>
@@ -622,7 +692,10 @@ export default function BoardView({
 
   return (
     <div className="mt-6">
-      <div className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:px-0 md:pb-0">
+      <div
+        ref={columnsAreaRef}
+        className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:px-0 md:pb-0"
+      >
         {COLUMNS.map((col) => {
           const colTasks = tasks.filter((t) => {
             if (col.id === 'done') return t.done || t.status === 'done'
@@ -646,12 +719,7 @@ export default function BoardView({
             <motion.div
               layout
               key={col.id}
-              onDragOver={(e) => {
-                e.preventDefault()
-                setDragOverCol(col.id)
-              }}
-              onDragLeave={() => setDragOverCol(null)}
-              onDrop={(e) => handleDrop(e, col.id)}
+              data-col={col.id}
               className={`min-w-[80vw] snap-center flex flex-col rounded-2xl bg-paper-100/70 p-3.5 transition-all duration-200 md:min-w-0 md:snap-none ${
                 isOver ? 'bg-pine-50/50 ring-2 ring-pine-500/40 scale-[1.01]' : ''
               }`}
@@ -684,7 +752,14 @@ export default function BoardView({
                 >
                   <AnimatePresence mode="popLayout" initial={false}>
                     {recentTasks.map((t) => (
-                      <ReorderableBoardCard key={t.id} task={t} render={renderCard} />
+                      <ReorderableBoardCard
+                        key={t.id}
+                        task={t}
+                        render={renderCard}
+                        onDragStart={handleCardDragStart}
+                        onDrag={handleCardDrag}
+                        onDragEnd={handleCardDragEnd}
+                      />
                     ))}
                   </AnimatePresence>
                 </Reorder.Group>

@@ -40,17 +40,25 @@
     <!-- Permissions -->
 
     <!-- Internet is not required for the local-first web content, but is part
-         of the Capacitor template; harmless while unused. -->
+         of the Capacitor template; harmless while unused. It is also needed for
+         the self-update feature, which downloads new APKs from GitHub Releases. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Directory.Documents (used by folder sync) needs legacy external storage
-         access on Android 10 and older only. Scoped storage applies from
-         Android 11 onward, and the Filesystem plugin maps Documents to
-         app-created files there, so no broader permission is needed. -->
+    <!-- Allows the app to install its own updates on Android 8+ (API 26+). The
+         user must still enable "install unknown apps" and confirm each install. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- Storage permissions for file reading and writing across Android versions:
+         - WRITE_EXTERNAL_STORAGE applies up to API 29 (Android 10)
+         - READ_EXTERNAL_STORAGE applies up to API 32 (Android 12L)
+         - MANAGE_EXTERNAL_STORAGE for all-files sync access on Android 11+
+         (READ_MEDIA_* is intentionally not declared: the app never touches the
+         media store — attachments live in the app's own IndexedDB.) -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="29" />
+        android:maxSdkVersion="32" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" tools:ignore="ScopedStorage" />
 </manifest>

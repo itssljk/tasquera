@@ -323,17 +323,21 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
         aria-label="Repeat options"
         aria-haspopup="true"
         aria-expanded={open}
-        className={`flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[13px] font-medium transition-colors duration-150 outline-none ring-offset-paper-50 focus-visible:ring-2 focus-visible:ring-pine-500/40 ${
+        className={`group flex items-center gap-2 rounded-xl px-2.5 py-1.5 text-[13px] font-medium transition-all duration-150 outline-none ring-offset-paper-50 focus-visible:ring-2 focus-visible:ring-pine-500/40 active:scale-[0.98] cursor-pointer ${
           value
-            ? 'bg-pine-500/10 text-pine-500 hover:bg-pine-500/15'
-            : 'text-ink-700 hover:bg-paper-200/70 hover:text-ink-900'
+            ? 'bg-pine-500/10 text-pine-500 hover:bg-pine-500/20'
+            : 'text-ink-700 hover:bg-paper-200/80 hover:text-ink-900'
         }`}
       >
-        <RepeatIcon className={`size-3.5 shrink-0 ${value ? 'text-pine-500' : 'text-ink-400'}`} />
+        <RepeatIcon
+          className={`size-3.5 shrink-0 transition-transform duration-150 group-hover:scale-110 group-hover:rotate-12 ${
+            value ? 'text-pine-500' : 'text-ink-400 group-hover:text-ink-700'
+          }`}
+        />
         <span className="max-w-[200px] truncate">{recurrenceLabel(value)}</span>
         <ChevronIcon
-          className={`size-3 shrink-0 text-ink-400 transition-transform duration-200 ${
-            open ? 'rotate-180 text-ink-700' : ''
+          className={`size-3 shrink-0 text-ink-400 transition-all duration-200 group-hover:text-ink-700 ${
+            open ? 'rotate-180 text-ink-800' : 'group-hover:translate-y-[1px]'
           }`}
         />
       </button>
@@ -355,10 +359,10 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                 <button
                   type="button"
                   onClick={() => setActiveTab('presets')}
-                  className={`flex-1 rounded-lg py-1 text-[11.5px] font-semibold transition-all ${
+                  className={`flex-1 rounded-lg py-1 text-[11.5px] font-semibold transition-all duration-150 cursor-pointer ${
                     activeTab === 'presets'
                       ? 'bg-paper-100 text-ink-900 shadow-2xs'
-                      : 'text-ink-500 hover:text-ink-800'
+                      : 'text-ink-500 hover:text-ink-800 hover:bg-paper-100/50'
                   }`}
                 >
                   Presets
@@ -371,10 +375,10 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                       applyCustom()
                     }
                   }}
-                  className={`flex-1 rounded-lg py-1 text-[11.5px] font-semibold transition-all ${
+                  className={`flex-1 rounded-lg py-1 text-[11.5px] font-semibold transition-all duration-150 cursor-pointer ${
                     activeTab === 'custom'
                       ? 'bg-paper-100 text-ink-900 shadow-2xs'
-                      : 'text-ink-500 hover:text-ink-800'
+                      : 'text-ink-500 hover:text-ink-800 hover:bg-paper-100/50'
                   }`}
                 >
                   Custom Rule
@@ -392,14 +396,14 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                           key={p.label}
                           type="button"
                           onClick={() => handlePresetSelect(p.value)}
-                          className={`flex items-center justify-between rounded-xl px-3 py-2 text-[12px] font-medium transition-all ${
+                          className={`group/preset flex items-center justify-between rounded-xl px-3 py-2 text-[12px] font-medium transition-all duration-150 hover:translate-x-0.5 active:scale-[0.98] cursor-pointer ${
                             active
                               ? 'bg-pine-600 text-paper-50 shadow-xs'
                               : 'bg-paper-200/50 text-ink-700 hover:bg-paper-200 hover:text-ink-900'
                           }`}
                         >
                           <span>{p.label}</span>
-                          {active && <CheckIcon className="size-3.5 text-paper-50 shrink-0" />}
+                          {active && <CheckIcon className="size-3.5 text-paper-50 shrink-0 transition-transform duration-150 group-hover/preset:scale-110" />}
                         </button>
                       )
                     })}

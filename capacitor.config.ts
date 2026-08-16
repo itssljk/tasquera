@@ -10,6 +10,11 @@ const config: CapacitorConfig = {
       style: 'DARK',
       backgroundColor: '#00000000',
     },
+    AppUpdate: {
+      // Manifest checked by the Android self-update flow. Defaults to the
+      // latest GitHub Release's update.json asset; override for self-hosting.
+      updateUrl: 'https://github.com/itssljk/tasquera/releases/latest/download/update.json',
+    },
   },
   android: {
     backgroundColor: '#131211',

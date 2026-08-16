@@ -9,12 +9,12 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
-// App version follows the web app's package.json version (e.g. 0.4.0),
-// passed in by build-apk.ps1 as -PappVersionName. Falls back to 0.4.0.
-// versionCode is derived: major*10000 + minor*100 + patch (0.4.0 -> 400).
+// App version follows the web app's package.json version (e.g. 0.8.0),
+// passed in by build-apk.ps1 as -PappVersionName. Falls back to 0.8.0.
+// versionCode is derived: major*10000 + minor*100 + patch (0.6.0 -> 600).
 def appVersionName = project.hasProperty('appVersionName') && project.property('appVersionName')
         ? project.property('appVersionName').toString()
-        : '0.4.0'
+        : '0.8.0'
 def versionMatch = (appVersionName =~ /(\d+)\.(\d+)(?:\.(\d+))?/)
 def appVersionCode = 1
 if (versionMatch.find()) {

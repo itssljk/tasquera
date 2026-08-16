@@ -1,10 +1,20 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { CheckIcon, FolderSyncIcon, InfoIcon, LogoMark } from './icons'
+import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
+import { BellIcon, CheckIcon, FolderSyncIcon, InfoIcon, LogoMark } from './icons'
 import AutoArchivePicker from './AutoArchivePicker'
+import { AppUpdateSection } from './AppUpdate'
 import { APP_NAME, APP_VERSION, LAST_LEGAL_UPDATE } from '../constants'
+import { isNativePlatform, hasNativeWriteAccess } from '../lib/sync'
+import {
+  getNotificationStatus,
+  requestNativePermission,
+  requestWebPermission,
+  type NotificationStatus,
+} from '../lib/notifications'
 
 import type { AppSettings } from '../types'
+import type { AppUpdater } from '../lib/useAppUpdater'
 
 function Shortcut({ keys, label }: { keys: string; label: string }) {
   return (
@@ -28,10 +38,14 @@ export default function SettingsView({
   isFileSystemSupported,
   isNative,
   isSyncActive,
+  syncNeedsPermission,
   lastSyncFormatted,
+  syncSizeBytes,
   syncErrorMsg,
+  syncResolveMsg,
   onSelectSyncFolder,
   onDisconnectSyncFolder,
+  updater,
 }: {
   settings?: AppSettings
   onUpdateSettings?: (patch: Partial<AppSettings>) => void
@@ -45,19 +59,81 @@ export default function SettingsView({
   isFileSystemSupported?: boolean
   isNative?: boolean
   isSyncActive?: boolean
+  syncNeedsPermission?: boolean
   lastSyncFormatted?: string | null
+  syncSizeBytes?: number | null
   syncErrorMsg?: string | null
+  syncResolveMsg?: string | null
   onSelectSyncFolder?: () => void
   onDisconnectSyncFolder?: () => void
+  updater?: AppUpdater
 }) {
   const [armed, setArmed] = useState(false)
   const [archivedCountMsg, setArchivedCountMsg] = useState<string | null>(null)
   const [dataMsg, setDataMsg] = useState<string | null>(null)
+  const [notifStatus, setNotifStatus] = useState<NotificationStatus>('unknown')
+  const [notifMsg, setNotifMsg] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    getNotificationStatus().then(setNotifStatus)
+  }, [])
+
+  const handleToggleNotifications = async () => {
+    const enable = !(settings?.notificationsEnabled ?? false)
+    if (enable) {
+      const granted = isNative ? await requestNativePermission() : await requestWebPermission()
+      setNotifStatus(await getNotificationStatus())
+      if (!granted) {
+        setNotifMsg(
+          isNative
+            ? 'Notifications are blocked. Allow notifications for Tasquera in Android system settings, then try again.'
+            : 'Notifications are blocked in this browser. Allow them in the site permissions settings, then try again.',
+        )
+        return
+      }
+    }
+    onUpdateSettings?.({ notificationsEnabled: enable })
+    setNotifMsg(null)
+  }
 
   const exportData = async () => {
     if (!onExportData) return
     const json = await onExportData()
+    if (isNativePlatform()) {
+      try {
+        const canWriteDocuments = await hasNativeWriteAccess()
+        const fileName = `tasquera-backup-${new Date().toISOString().slice(0, 10)}.json`
+        if (canWriteDocuments) {
+          try {
+            await Filesystem.writeFile({
+              path: fileName,
+              data: json,
+              directory: Directory.Documents,
+              encoding: Encoding.UTF8,
+              recursive: true,
+            })
+            setDataMsg(`Backup saved to Documents/${fileName}`)
+            setTimeout(() => setDataMsg(null), 4000)
+            return
+          } catch (docErr) {
+            // Fall through to app storage below if Documents is not writable.
+          }
+        }
+        await Filesystem.writeFile({
+          path: fileName,
+          data: json,
+          directory: Directory.External,
+          encoding: Encoding.UTF8,
+          recursive: true,
+        })
+        setDataMsg(`Backup saved to ${fileName}`)
+        setTimeout(() => setDataMsg(null), 4000)
+        return
+      } catch (err) {
+        console.error('Failed native backup export:', err)
+      }
+    }
     const blob = new Blob([json], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -139,7 +215,7 @@ export default function SettingsView({
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={onInstallPWA}
-                disabled={!canInstallPWA && !onInstallPWA}
+                disabled={!canInstallPWA}
                 className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-[14px] font-medium text-white transition-colors hover:bg-pine-700 disabled:opacity-50"
               >
                 Install App
@@ -184,6 +260,91 @@ export default function SettingsView({
               Archive older tasks
             </button>
           </div>
+        </div>
+      </section>
+
+      {/* Notifications */}
+      <section className="mt-10">
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Notifications</h2>
+        <div className="mt-3 rounded-2xl border border-paper-200/80 bg-paper-100/40 p-4 sm:p-5">
+          <div className="flex items-start gap-3">
+            <div
+              className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                settings?.notificationsEnabled ? 'bg-pine-500/15 text-pine-400' : 'bg-paper-200 text-ink-400'
+              }`}
+            >
+              <BellIcon className="size-4.5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[15px] font-semibold text-ink-900 leading-snug">Due date & deadline reminders</span>
+                {settings?.notificationsEnabled && (
+                  <span className="inline-flex items-center rounded-full bg-pine-500/15 px-2.5 py-0.5 text-[11.5px] font-medium text-pine-300 border border-pine-500/30">
+                    <span className="size-1.5 rounded-full bg-pine-400 animate-pulse" />
+                    On
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[12.5px] text-ink-500 leading-normal">
+                {isNative
+                  ? 'Tasquera reminds you when tasks are due — even when the app is closed.'
+                  : 'Tasquera reminds you when tasks are due while it’s open in this browser.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings?.notificationsEnabled ?? false}
+              onClick={handleToggleNotifications}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                settings?.notificationsEnabled ? 'bg-pine-600' : 'bg-paper-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                  settings?.notificationsEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {notifMsg && <p className="mt-3 text-[12.5px] font-medium text-terra-600">{notifMsg}</p>}
+
+          {settings?.notificationsEnabled && (
+            <div className="mt-4 flex flex-col gap-3 border-t border-paper-200/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-[14.5px] font-medium text-ink-800">Remind on due date at</p>
+                <p className="mt-0.5 text-[12.5px] text-ink-500">
+                  Date-only due dates remind at this time. Deadlines use their own time.
+                </p>
+              </div>
+              <input
+                type="time"
+                value={settings?.notificationTime ?? '09:00'}
+                onChange={(e) => onUpdateSettings?.({ notificationTime: e.target.value || '09:00' })}
+                className="shrink-0 self-start rounded-xl border border-paper-200 bg-paper-50 px-3 py-2 text-[13.5px] font-medium text-ink-700 transition-colors hover:border-paper-300 focus:border-pine-500 focus:outline-none sm:self-center"
+              />
+            </div>
+          )}
+
+          {notifStatus === 'denied' && (
+            <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+              {isNative
+                ? 'Notifications are blocked at the system level. Allow them for Tasquera in Android settings, then toggle reminders on.'
+                : 'Notifications are blocked for this site. Allow them in your browser’s site permissions, then toggle reminders on.'}
+            </p>
+          )}
+          {!isNative && notifStatus === 'unsupported' && (
+            <p className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+              Notifications aren’t supported in this browser. Reminders will appear in-app on the Today view instead.
+            </p>
+          )}
+          {!isNative && (
+            <p className="mt-3 text-[12px] text-ink-500 leading-relaxed">
+              Browsers can’t schedule notifications in the background without a push server, so reminders appear while
+              Tasquera is open — including the installed PWA. Overdue reminders are caught up the next time you open the app.
+            </p>
+          )}
         </div>
       </section>
 
@@ -245,7 +406,7 @@ export default function SettingsView({
                   disabled={!isFileSystemSupported && !isNative}
                   className="w-full sm:w-auto rounded-xl bg-pine-600 px-3.5 py-1.5 text-[13px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 disabled:opacity-50"
                 >
-                  {isNative ? 'Enable Sync' : 'Select Folder'}
+                  {isNative ? (syncNeedsPermission ? 'Grant access' : 'Enable Sync') : 'Select Folder'}
                 </motion.button>
               )}
             </div>
@@ -274,10 +435,31 @@ export default function SettingsView({
             </div>
           )}
 
+          {/* Storage access required (Android 11+) */}
+          {syncNeedsPermission && (
+            <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+              Android 11 and newer require <strong>All files access</strong> to read and write the <code className="font-mono text-[11px]">Documents/Tsqsync/</code> folder. Grant it once and Tasquera will reconnect automatically.
+            </div>
+          )}
+
           {/* Error Message */}
           {syncErrorMsg && (
             <div className="mt-3 rounded-xl border border-terra-500/20 bg-terra-500/10 p-3 text-[12.5px] font-medium text-terra-700">
               {syncErrorMsg}
+            </div>
+          )}
+
+          {/* Large sync file notice — image attachments live in the JSON */}
+          {typeof syncSizeBytes === 'number' && syncSizeBytes > 2_000_000 && (
+            <div className="mt-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+              Your sync file is currently {(syncSizeBytes / 1_000_000).toFixed(1)} MB. Image attachments are embedded in it as base64, so large photos make the file big and Syncthing re-syncs the whole file on every change.
+            </div>
+          )}
+
+          {/* Auto-resolved conflict notice */}
+          {syncResolveMsg && (
+            <div className="mt-3 rounded-xl border border-pine-500/20 bg-pine-500/10 p-3 text-[12.5px] font-medium text-pine-700">
+              {syncResolveMsg}
             </div>
           )}
 
@@ -333,6 +515,8 @@ export default function SettingsView({
         <div className="mt-3 space-y-2.5">
           <Shortcut keys="/" label="Quick-add a task" />
           <Shortcut keys="Enter" label="Add / submit" />
+          <Shortcut keys="Ctrl+K" label="Search tasks" />
+          <Shortcut keys="Ctrl+Z / Ctrl+Y" label="Undo / redo" />
           <Shortcut keys="Drag" label="Reorder tasks" />
         </div>
       </section>
@@ -388,6 +572,8 @@ export default function SettingsView({
           </motion.button>
         </div>
       </section>
+
+      {isNative && updater && <AppUpdateSection updater={updater} />}
 
       {/* About & Legal */}
       <section className="mt-10">

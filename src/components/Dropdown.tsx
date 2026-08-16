@@ -91,13 +91,19 @@ export default function Dropdown<T extends string | number>({
         aria-expanded={open}
         className={
           triggerClass ??
-          'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13px] transition-colors duration-150 hover:bg-paper-200/60'
+          'group flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-800 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900 active:scale-[0.98] cursor-pointer'
         }
       >
-        {icon}
-        <span className={`font-medium ${valueTextClass ?? 'text-ink-900'}`}>{selected?.label ?? value}</span>
+        {icon && (
+          <span className="flex items-center transition-transform duration-150 group-hover:scale-110">
+            {icon}
+          </span>
+        )}
+        <span className={`font-medium transition-colors ${valueTextClass ?? 'text-ink-900'}`}>{selected?.label ?? value}</span>
         <ChevronIcon
-          className={`size-3 shrink-0 text-ink-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`size-3 shrink-0 text-ink-400 transition-all duration-200 group-hover:text-ink-700 ${
+            open ? 'rotate-180 text-ink-900' : 'group-hover:translate-y-[1px]'
+          }`}
         />
       </button>
 
@@ -123,18 +129,22 @@ export default function Dropdown<T extends string | number>({
                     setOpen(false)
                   }}
                   onMouseEnter={() => setActiveIndex(i)}
-                  className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors duration-100 ${
-                    i === activeIndex ? 'bg-paper-300/60' : ''
+                  className={`group/opt flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-all duration-150 hover:translate-x-0.5 cursor-pointer ${
+                    i === activeIndex ? 'bg-paper-300/70 text-ink-900' : 'text-ink-700 hover:bg-paper-300/40 hover:text-ink-900'
                   }`}
                 >
                   <span
-                    className={`flex-1 truncate font-medium ${
-                      opt.textClass ?? (opt.value === value ? 'text-ink-900' : 'text-ink-500')
+                    className={`flex-1 truncate font-medium transition-colors duration-150 ${
+                      opt.textClass ?? (opt.value === value ? 'text-ink-900 font-semibold' : 'text-ink-600 group-hover/opt:text-ink-900')
                     }`}
                   >
                     {opt.label}
                   </span>
-                  {opt.value === value && <CheckIcon className="size-3.5 shrink-0 text-pine-500" />}
+                  {opt.value === value && (
+                    <span className="transition-transform duration-150 group-hover/opt:scale-110">
+                      <CheckIcon className="size-3.5 shrink-0 text-pine-500" />
+                    </span>
+                  )}
                 </button>
               </li>
             ))}

@@ -144,7 +144,7 @@ export default function CalendarView(props: CalendarViewProps) {
             initial={{ opacity: 0, x: direction * 14 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.2 }}
-            className="min-w-0 font-serif text-[24px] italic leading-none tracking-tight text-ink-900 sm:text-[28px]"
+            className="min-w-0 font-sans text-[24px] font-bold leading-none tracking-tight text-ink-900 sm:text-[28px]"
           >
             {monthLabel(year, month)}
           </motion.h1>
@@ -220,7 +220,7 @@ export default function CalendarView(props: CalendarViewProps) {
                   <button
                     key={iso}
                     onClick={() => setSelected(iso)}
-                    aria-label={`${formatDueHeading(iso)}${totalCount > 0 ? `, ${totalCount} tasks` : ''}`}
+                    aria-label={`${formatDueHeading(iso)}${totalCount > 0 ? `, ${totalCount} ${totalCount === 1 ? 'task' : 'tasks'}` : ''}`}
                     aria-pressed={sel}
                     className={`group relative flex aspect-square flex-col items-center justify-between rounded-xl p-1.5 transition-all duration-150 sm:rounded-2xl sm:p-2 ${
                       sel

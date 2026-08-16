@@ -45,7 +45,7 @@ if (-not $env:ANDROID_HOME) {
 }
 $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:Path"
 
-# Keep the Android version in sync with package.json (e.g. 0.4.0).
+# Keep the Android version in sync with package.json (e.g. 0.7.0).
 $appVersion = (Get-Content (Join-Path $projectRoot "package.json") | ConvertFrom-Json).version
 Write-Host "Version: v$appVersion" -ForegroundColor DarkGray
 
@@ -65,6 +65,30 @@ $apkPath = "android\app\build\outputs\apk\release\app-release.apk"
 if (Test-Path $apkPath) {
     $apkItem = Get-Item $apkPath
     $sizeMB = [Math]::Round($apkItem.Length / 1MB, 2)
+
+    # Emit the self-update manifest (checked by the Android app). Upload it to
+    # the GitHub Release alongside the APK.
+    $verParts = ($appVersion -replace '^v', '') -split '\.'
+    $major = [int]$verParts[0]
+    $minor = if ($verParts.Length -gt 1) { [int]$verParts[1] } else { 0 }
+    $patch = if ($verParts.Length -gt 2) { [int]$verParts[2] } else { 0 }
+    $versionCode = $major * 10000 + $minor * 100 + $patch
+    $sha256 = (Get-FileHash -Algorithm SHA256 -Path $apkPath).Hash.ToLower()
+    $releaseDir = Split-Path -Parent $apkPath
+    $updateJson = @{
+        versionCode  = [int]$versionCode
+        versionName  = $appVersion
+        sha256       = $sha256
+        releaseNotes = ""
+        apkUrl       = "https://github.com/itssljk/tasquera/releases/latest/download/app-release.apk"
+    } | ConvertTo-Json
+    [System.IO.File]::WriteAllText(
+        (Join-Path $releaseDir "update.json"),
+        $updateJson,
+        (New-Object System.Text.UTF8Encoding $false)
+    )
+
     Write-Host "`n[SUCCESS] Signed Release APK Build Complete! ($sizeMB MB)" -ForegroundColor Green
     Write-Host "Location: $apkPath" -ForegroundColor Green
+    Write-Host "Manifest: $(Join-Path $releaseDir 'update.json')" -ForegroundColor Green
 }

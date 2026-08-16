@@ -96,7 +96,7 @@ export function IOSInstallModal({
             className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
               isDesktop
                 ? 'inset-y-0 right-0 w-full max-w-md border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
-                : 'inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)] pb-[env(safe-area-inset-bottom,0px)]'
+                : 'inset-x-0 bottom-0 max-h-[85dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)]'
             }`}
           >
             {/* Mobile grab handle */}
@@ -158,7 +158,7 @@ export function IOSInstallModal({
             </div>
 
             {/* Sticky footer */}
-            <div className="border-t border-paper-200/70 bg-paper-100/95 px-6 py-3.5 backdrop-blur-xs">
+            <div className="border-t border-paper-200/70 bg-paper-100/95 px-6 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:py-3.5 backdrop-blur-xs">
               <button
                 type="button"
                 onClick={onClose}

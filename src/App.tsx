@@ -1,35 +1,48 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import { useStore } from './state/store'
 import { useRoute } from './lib/route'
 import { formatDueHeading, getEffectiveDate, isOverdue, todayISO } from './lib/date'
 import Sidebar from './components/Sidebar'
 import TaskRow from './components/TaskRow'
-import BoardView from './components/BoardView'
-import CalendarView from './components/CalendarView'
-import SettingsView from './components/SettingsView'
 import TosView from './components/TosView'
 import PrivacyView from './components/PrivacyView'
 import LicensesView from './components/LicensesView'
-import TaskModal from './components/TaskModal'
-import SearchView from './components/SearchView'
 import { IOSInstallModal, usePWAInstall } from './components/InstallPWA'
+import { AppUpdateBanner } from './components/AppUpdate'
+
+// Heavy, non-critical views and the task modal are code-split so they load on
+// demand (first open) instead of inflating the initial bundle.
+const BoardView = lazy(() => import('./components/BoardView'))
+const CalendarView = lazy(() => import('./components/CalendarView'))
+const SettingsView = lazy(() => import('./components/SettingsView'))
+const SearchView = lazy(() => import('./components/SearchView'))
+const TaskModal = lazy(() => import('./components/TaskModal'))
+import StoragePermissionOnboarding from './components/StoragePermissionOnboarding'
 import { LogoMark, MenuIcon, PlusIcon, SearchIcon } from './components/icons'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import type { MenuState, Route, Task, TaskStatus } from './types'
 import {
   buildSyncPayload,
+  checkNativeStorageAccess,
   clearSyncDirectoryHandle,
+  ensureNativePermissions,
   getStoredDirectoryHandle,
+  hasNativeWriteAccess,
   isFileSystemAccessSupported,
   isNativePlatform,
   pickSyncDirectory,
   readSyncFromDirectory,
+  readConflictCopies,
+  deleteSyncConflictCopies,
   writeSyncToDirectory,
   type SyncHandle,
 } from './lib/sync'
+import { idbKeyval } from './lib/idb'
 import { importImages } from './lib/attachments'
 import { triggerTaskConfetti } from './lib/confetti'
+import { useTaskReminders } from './lib/notifications'
+import { useAppUpdater } from './lib/useAppUpdater'
 
 interface ViewData {
   mode: 'list' | 'calendar' | 'settings' | 'tos' | 'privacy' | 'licenses' | 'archive' | 'board' | 'search'
@@ -84,8 +97,34 @@ export default function App() {
   const store = useStore()
   const route = useRoute()
   const pwaInstall = usePWAInstall()
+  const updater = useAppUpdater()
+
+  // Due-date & deadline reminders (OS notifications on Android, foreground
+  // notifications on web/PWA).
+  useTaskReminders(store.tasks, store.settings)
   const [menu, setMenu] = useState<MenuState>(null)
   const [drawer, setDrawer] = useState(false)
+  // Desktop sidebar collapses to an icon rail. Stored per-device so the choice
+  // survives reloads; only the always-mounted desktop instance uses it (the
+  // mobile drawer always renders expanded).
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tasquera.sidebar_collapsed_rail') === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('tasquera.sidebar_collapsed_rail', next ? '1' : '0')
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
   const [armClear, setArmClear] = useState(false)
   const quickRef = useRef<HTMLInputElement>(null)
 
@@ -99,7 +138,11 @@ export default function App() {
 
   const [syncDirHandle, setSyncDirHandle] = useState<SyncHandle | null>(null)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [syncNeedsPermission, setSyncNeedsPermission] = useState(false)
+  const [showStorageOnboarding, setShowStorageOnboarding] = useState(false)
   const [lastSyncTime, setLastSyncTime] = useState<number | null>(null)
+  const [lastSyncSizeBytes, setLastSyncSizeBytes] = useState<number | null>(null)
+  const [syncResolveMsg, setSyncResolveMsg] = useState<string | null>(null)
 
   const isFileSystemSupported = isFileSystemAccessSupported()
 
@@ -112,18 +155,74 @@ export default function App() {
     }
   }, [])
 
-  // Load stored sync directory handle on mount
+  // Load stored sync directory handle on mount. On native, verify write access
+  // first so we don't auto-connect to a folder we can't actually write to.
   useEffect(() => {
     if (!isFileSystemSupported) return
-    getStoredDirectoryHandle().then((handle) => {
-      if (handle) setSyncDirHandle(handle)
-    })
+    let cancelled = false
+    ;(async () => {
+      if (isNativePlatform()) {
+        const ok = await hasNativeWriteAccess()
+        if (cancelled) return
+        setSyncNeedsPermission(!ok)
+        if (ok) {
+          const handle = await getStoredDirectoryHandle()
+          if (!cancelled) setSyncDirHandle(handle)
+        } else {
+          // The "All files access" onboarding only applies to Android 11+
+          // (API 30+). Older versions use the regular runtime permission
+          // dialog, which the Settings sync flow triggers on demand.
+          const { sdkInt } = await checkNativeStorageAccess()
+          if (cancelled) return
+          if (sdkInt >= 30) {
+            let seen = false
+            try {
+              seen = !!(await idbKeyval.get<boolean>('tasquera_storage_onboarding_seen'))
+            } catch {
+              // Ignore storage errors; default to showing the onboarding once.
+            }
+            if (!seen) setShowStorageOnboarding(true)
+          }
+        }
+      } else {
+        const handle = await getStoredDirectoryHandle()
+        if (!cancelled && handle) setSyncDirHandle(handle)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
   }, [isFileSystemSupported])
+
+  // Re-check native storage access when the app returns to the foreground, so
+  // granting "All files access" in Settings reconnects sync automatically.
+  useEffect(() => {
+    if (!isNativePlatform()) return
+    const refresh = () => {
+      if (document.visibilityState !== 'visible') return
+      hasNativeWriteAccess().then(async (ok) => {
+        if (ok) {
+          setSyncNeedsPermission(false)
+          setShowStorageOnboarding(false)
+          const handle = await getStoredDirectoryHandle()
+          if (handle) setSyncDirHandle(handle)
+        } else {
+          setSyncNeedsPermission(true)
+        }
+      })
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
 
   // Perform background sync write when local store state changes
   const lastStateJsonRef = useRef<string>('')
   useEffect(() => {
-    if (!syncDirHandle) return
+    if (!syncDirHandle || syncNeedsPermission) return
     const signature = JSON.stringify({
       tasks: store.tasks,
       collections: store.collections,
@@ -133,16 +232,27 @@ export default function App() {
     lastStateJsonRef.current = signature
 
     buildSyncPayload(store.tasks, store.collections, store.tombstones).then((payload) => {
-      writeSyncToDirectory(syncDirHandle, payload).then((ok) => {
+      setLastSyncSizeBytes(JSON.stringify(payload).length)
+      writeSyncToDirectory(syncDirHandle, payload).then(async (ok) => {
         if (ok) {
           setLastSyncTime(Date.now())
           setSyncError(null)
+          setSyncNeedsPermission(false)
+        } else if (isNativePlatform()) {
+          const access = await hasNativeWriteAccess()
+          if (!access) {
+            setSyncNeedsPermission(true)
+            setSyncDirHandle(null)
+            setSyncError('Storage access is required to sync. Tap "Grant access" below to allow Tasquera to read and write the Documents/Tsqsync folder.')
+          } else {
+            setSyncError('Could not write to local sync folder. Please check the Documents/Tsqsync folder and try again.')
+          }
         } else {
           setSyncError('Could not write to local sync folder. Please re-select the folder or check permissions.')
         }
       })
     })
-  }, [store.tasks, store.collections, store.tombstones, syncDirHandle])
+  }, [store.tasks, store.collections, store.tombstones, syncDirHandle, syncNeedsPermission])
 
   // Keep a stable reference to mergeState so the poll interval isn't recreated
   // on every render (mergeState's identity changes each render).
@@ -151,22 +261,42 @@ export default function App() {
 
   // Periodic polling watcher for remote Syncthing updates (every 5s)
   useEffect(() => {
-    if (!syncDirHandle) return
+    if (!syncDirHandle || syncNeedsPermission) return
     const interval = setInterval(async () => {
       const payload = await readSyncFromDirectory(syncDirHandle)
       if (payload && Array.isArray(payload.tasks)) {
         if (payload.attachments) await importImages(payload.attachments)
         mergeStateRef.current(payload.tasks, payload.collections || [], payload.tombstones || [])
         setLastSyncTime(Date.now())
+
+        // Auto-resolve Syncthing conflict copies: merge their edits into local
+        // state (so no device loses data), then remove the copies so the folder
+        // converges to a single clean file. Only runs when the main file was
+        // readable this round, so we never delete the only copy of data.
+        const conflicts = await readConflictCopies(syncDirHandle)
+        if (conflicts.length > 0) {
+          for (const c of conflicts) {
+            if (c.attachments) await importImages(c.attachments)
+            mergeStateRef.current(c.tasks, c.collections || [], c.tombstones || [])
+          }
+          const deleted = await deleteSyncConflictCopies(syncDirHandle)
+          if (deleted > 0) {
+            setSyncResolveMsg(
+              `Merged ${conflicts.length} conflicting sync ${conflicts.length === 1 ? 'copy' : 'copies'} — edits from both devices were combined and the duplicates cleaned up.`,
+            )
+            window.setTimeout(() => setSyncResolveMsg(null), 8000)
+          }
+        }
       }
     }, 5000)
     return () => clearInterval(interval)
-  }, [syncDirHandle])
+  }, [syncDirHandle, syncNeedsPermission])
 
   const handleSelectSyncFolder = async () => {
     setSyncError(null)
     const handle = await pickSyncDirectory()
     if (handle) {
+      setSyncNeedsPermission(false)
       setSyncDirHandle(handle)
       // Read existing data if present in directory
       const payload = await readSyncFromDirectory(handle)
@@ -175,16 +305,42 @@ export default function App() {
         store.mergeState(payload.tasks, payload.collections || [], payload.tombstones || [])
       } else {
         // Initial write if folder has no sync file yet
-        await writeSyncToDirectory(handle, await buildSyncPayload(store.tasks, store.collections, store.tombstones))
+        const payload = await buildSyncPayload(store.tasks, store.collections, store.tombstones)
+        setLastSyncSizeBytes(JSON.stringify(payload).length)
+        await writeSyncToDirectory(handle, payload)
       }
       setLastSyncTime(Date.now())
+    } else if (isNativePlatform()) {
+      // On Android 11+ the user was sent to the system settings to grant
+      // "All files access". Reconnect automatically when they return.
+      setSyncNeedsPermission(true)
+      setSyncError('Allow "All files access" in Settings, then return here — Tasquera will reconnect automatically.')
     }
   }
 
   const handleDisconnectSyncFolder = async () => {
     await clearSyncDirectoryHandle()
     setSyncDirHandle(null)
+    setSyncNeedsPermission(false)
     setSyncError(null)
+  }
+
+  const handleStorageOnboardingGrant = async () => {
+    // API 30+ opens the system "All files access" settings screen; on older
+    // Android this triggers the regular runtime permission dialog instead.
+    // The overlay dismisses itself once access is detected.
+    const ok = await ensureNativePermissions()
+    if (ok) {
+      setShowStorageOnboarding(false)
+      setSyncNeedsPermission(false)
+      const handle = await getStoredDirectoryHandle()
+      if (handle) setSyncDirHandle(handle)
+    }
+  }
+
+  const handleStorageOnboardingNotNow = async () => {
+    setShowStorageOnboarding(false)
+    await idbKeyval.set('tasquera_storage_onboarding_seen', true)
   }
 
   const { tasks, collections } = store
@@ -426,6 +582,8 @@ export default function App() {
     onRenameCollection: store.renameCollection,
     onDeleteCollection: store.deleteCollection,
     onReorderCollections: store.reorderCollections,
+    onReorderFavorites: store.reorderFavorites,
+    onToggleFavoriteCollection: store.toggleFavoriteCollection,
     canInstallPWA: isNativePlatform() ? false : pwaInstall.canInstall,
     onInstallPWA: pwaInstall.promptInstall,
   }
@@ -435,8 +593,8 @@ export default function App() {
 
   return (
     <div className="flex h-screen supports-[height:100dvh]:h-dvh overflow-hidden bg-paper-50">
-      <div className="hidden h-full md:block">
-        <Sidebar {...sidebarProps} />
+      <div className="hidden h-full md:block relative z-40">
+        <Sidebar {...sidebarProps} collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
       </div>
 
       <AnimatePresence>
@@ -547,6 +705,11 @@ export default function App() {
                 </header>
               )}
 
+              <Suspense
+                fallback={
+                  <div className="py-20 text-center text-[13px] text-ink-500">Loading…</div>
+                }
+              >
               {view.mode === 'board' ? (
                 activeCollection && (
                   <BoardView
@@ -599,10 +762,14 @@ export default function App() {
                     isFileSystemSupported={isFileSystemSupported}
                     isNative={isNativePlatform()}
                     isSyncActive={!!syncDirHandle}
+                    syncNeedsPermission={syncNeedsPermission}
                     lastSyncFormatted={lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : null}
+                    syncSizeBytes={lastSyncSizeBytes}
                     syncErrorMsg={syncError}
+                    syncResolveMsg={syncResolveMsg}
                     onSelectSyncFolder={handleSelectSyncFolder}
                     onDisconnectSyncFolder={handleDisconnectSyncFolder}
+                    updater={updater}
                   />
                 </div>
               ) : view.mode === 'tos' ? (
@@ -720,6 +887,7 @@ export default function App() {
                   )}
                 </>
               )}
+              </Suspense>
             </motion.div>
           </AnimatePresence>
         </div>
@@ -729,16 +897,18 @@ export default function App() {
 
       <AnimatePresence>
         {modalState.isOpen && (
-          <TaskModal
-            isOpen={modalState.isOpen}
-            taskToEdit={modalState.taskToEdit}
-            defaultListId={modalState.defaultListId}
-            defaultStatus={modalState.defaultStatus}
-            defaultDueDate={modalState.defaultDueDate}
-            collections={collections}
-            onClose={closeModal}
-            onSave={handleSaveTask}
-          />
+          <Suspense fallback={null}>
+            <TaskModal
+              isOpen={modalState.isOpen}
+              taskToEdit={modalState.taskToEdit}
+              defaultListId={modalState.defaultListId}
+              defaultStatus={modalState.defaultStatus}
+              defaultDueDate={modalState.defaultDueDate}
+              collections={collections}
+              onClose={closeModal}
+              onSave={handleSaveTask}
+            />
+          </Suspense>
         )}
       </AnimatePresence>
 
@@ -790,6 +960,16 @@ export default function App() {
         <IOSInstallModal
           isOpen={pwaInstall.showIOSModal}
           onClose={() => pwaInstall.setShowIOSModal(false)}
+        />
+      )}
+
+      <AppUpdateBanner updater={updater} />
+
+      {isNativePlatform() && (
+        <StoragePermissionOnboarding
+          isOpen={showStorageOnboarding}
+          onGrant={handleStorageOnboardingGrant}
+          onNotNow={handleStorageOnboardingNotNow}
         />
       )}
     </div>

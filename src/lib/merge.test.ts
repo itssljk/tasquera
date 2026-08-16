@@ -24,8 +24,8 @@ function task(id: string, updatedAt: number, extra: Partial<Task> = {}): Task {
   }
 }
 
-function col(id: string, updatedAt: number): Collection {
-  return { id, kind: 'list', name: id, createdAt: updatedAt, updatedAt }
+function col(id: string, updatedAt: number, extra: Partial<Collection> = {}): Collection {
+  return { id, kind: 'list', name: id, createdAt: updatedAt, updatedAt, ...extra }
 }
 
 function tomb(id: string, deletedAt: number, kind: 'task' | 'collection' = 'task'): Tombstone {
@@ -75,6 +75,18 @@ describe('mergeSyncState', () => {
   it('keeps the newest tombstone timestamp', () => {
     const r = mergeSyncState([], [], [tomb('a', 100)], [], [], [tomb('a', 50)])
     expect(r.tombstones[0].deletedAt).toBe(100)
+  })
+
+  it('propagates favorites when the remote collection is newer', () => {
+    const r = mergeSyncState([], [col('w', 10)], [], [], [col('w', 20, { favorite: true })], [])
+    expect(r.changed).toBe(true)
+    expect(r.collections[0].favorite).toBe(true)
+    expect(r.collections[0].updatedAt).toBe(20)
+
+    // Older remote copy cannot un-favorite a local favorite.
+    const keep = mergeSyncState([], [col('w', 20, { favorite: true })], [], [], [col('w', 10)], [])
+    expect(keep.changed).toBe(false)
+    expect(keep.collections[0].favorite).toBe(true)
   })
 
   it('removes a tombstoned collection and orphans its tasks to the inbox', () => {

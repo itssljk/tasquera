@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import type { Collection, PriorityLevel, Recurrence, Subtask, Task, TaskLink, TaskStatus } from '../types'
 import { putImage, resolveMany } from '../lib/attachments'
 import Dropdown from './Dropdown'
-import DatePicker from './DatePicker'
+import { DatePickerPanel, DatePickerTrigger } from './DatePicker'
 import RecurrencePicker from './RecurrencePicker'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import {
@@ -77,6 +77,7 @@ export default function TaskModal(props: TaskModalProps) {
   const [showAddImage, setShowAddImage] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState<'due' | 'deadline' | null>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -113,9 +114,24 @@ export default function TaskModal(props: TaskModalProps) {
       setShowAddImage(false)
       setPreviewImage(null)
       setIsDraggingOver(false)
+      setScheduleOpen(null)
       void resolveMany(taskToEdit?.images ?? []).then(setImageUrls)
     }
   }, [isOpen, taskToEdit, defaultListId, defaultStatus, defaultDueDate])
+
+  // Close the centered date dialog with Escape (capture phase so it wins over
+  // the modal's own Escape handler, which would otherwise close the whole modal)
+  useEffect(() => {
+    if (!scheduleOpen) return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        setScheduleOpen(null)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [scheduleOpen])
 
   if (!isOpen) return null
 
@@ -143,7 +159,12 @@ export default function TaskModal(props: TaskModalProps) {
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      onClose()
+      if (scheduleOpen) {
+        // Escape collapses the inline calendar before closing the modal
+        setScheduleOpen(null)
+      } else {
+        onClose()
+      }
     } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault()
       handleFormSubmit()
@@ -291,6 +312,9 @@ export default function TaskModal(props: TaskModalProps) {
   const showImages = images.length > 0 || showAddImage
   const priorityStyle = PRIORITIES.find((p) => p.id === priority) ?? PRIORITIES[1]
 
+  const selectedCollection = collections.find((c) => c.id === listId)
+  const isBoard = selectedCollection?.kind === 'board'
+
   return (
     <>
       <motion.div
@@ -320,7 +344,7 @@ export default function TaskModal(props: TaskModalProps) {
         className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
           isDesktop
             ? 'inset-y-0 right-0 w-full max-w-[560px] border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
-            : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)] pb-[env(safe-area-inset-bottom,0px)]'
+            : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)]'
         }`}
       >
         {/* Mobile grab handle */}
@@ -366,7 +390,7 @@ export default function TaskModal(props: TaskModalProps) {
 
           {/* Metadata toolbar */}
           <div className="mt-5 h-px bg-paper-200/70" />
-          <div className="mt-5 flex flex-wrap items-center gap-1">
+          <div className="mt-4 flex flex-wrap items-center gap-1">
             {/* List / Board */}
             <Dropdown<string>
               value={listId ?? ''}
@@ -376,18 +400,20 @@ export default function TaskModal(props: TaskModalProps) {
               options={[{ value: '', label: 'Inbox' }, ...collections.map((c) => ({ value: c.id, label: c.name }))]}
             />
 
-            {/* Status */}
-            <Dropdown<TaskStatus>
-              value={status}
-              onChange={setStatus}
-              ariaLabel="Status"
-              icon={<CheckCircleIcon className={toolbarIcon} />}
-              options={[
-                { value: 'todo', label: 'To do' },
-                { value: 'in_progress', label: 'In progress' },
-                { value: 'done', label: 'Done' },
-              ]}
-            />
+            {/* Status (Kanban boards only) */}
+            {isBoard && (
+              <Dropdown<TaskStatus>
+                value={status}
+                onChange={setStatus}
+                ariaLabel="Status"
+                icon={<CheckCircleIcon className={toolbarIcon} />}
+                options={[
+                  { value: 'todo', label: 'To do' },
+                  { value: 'in_progress', label: 'In progress' },
+                  { value: 'done', label: 'Done' },
+                ]}
+              />
+            )}
 
             {/* Priority */}
             <Dropdown<PriorityLevel>
@@ -403,24 +429,26 @@ export default function TaskModal(props: TaskModalProps) {
             <RecurrencePicker value={recurrence} onChange={setRecurrence} />
           </div>
 
-          {/* Date & Deadline Fields */}
-          <div className="mt-3.5 flex flex-wrap items-center gap-2.5 rounded-xl bg-paper-200/50 p-2 border border-paper-200/60">
+          {/* Schedule: due date & deadline chips */}
+          <div className="mt-2 flex flex-wrap items-center gap-1">
             {/* Due date */}
-            <DatePicker
+            <DatePickerTrigger
               mode="date"
               value={dueDate}
               onChange={setDueDate}
-              label="Due:"
               accentColor="pine"
+              open={scheduleOpen === 'due'}
+              onToggle={() => setScheduleOpen((cur) => (cur === 'due' ? null : 'due'))}
             />
 
             {/* Deadline */}
-            <DatePicker
+            <DatePickerTrigger
               mode="datetime"
               value={deadline}
               onChange={setDeadline}
-              label="Deadline:"
               accentColor="amber"
+              open={scheduleOpen === 'deadline'}
+              onToggle={() => setScheduleOpen((cur) => (cur === 'deadline' ? null : 'deadline'))}
             />
           </div>
 
@@ -497,34 +525,33 @@ export default function TaskModal(props: TaskModalProps) {
 
           {/* Add link / image affordances */}
           {(!showLinks || !showImages) && (
-            <div className="mt-6 flex flex-wrap items-center gap-4 text-[13px] text-ink-500">
+            <div className="mt-5 flex flex-wrap items-center gap-1.5">
               {!showLinks && (
                 <button
                   type="button"
                   onClick={() => setShowAddLink(true)}
-                  className="flex items-center gap-1.5 transition-colors duration-150 hover:text-ink-900"
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900"
                 >
-                  <LinkIcon className="size-3.5 text-ink-400" />
+                  <PlusIcon className="size-3.5 text-ink-400" />
                   Add link
                 </button>
               )}
               {!showImages && (
-                <div className="flex items-center gap-3">
-                  <label className="flex cursor-pointer items-center gap-1.5 transition-colors duration-150 hover:text-ink-900">
+                <>
+                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900">
                     <PaperclipIcon className="size-3.5 text-ink-400" />
                     Upload image
                     <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
                   </label>
-                  <span className="text-ink-300">·</span>
                   <button
                     type="button"
                     onClick={() => setShowAddImage(true)}
-                    className="flex items-center gap-1.5 transition-colors duration-150 hover:text-ink-900"
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900"
                   >
                     <LinkIcon className="size-3.5 text-ink-400" />
                     Image URL
                   </button>
-                </div>
+                </>
               )}
             </div>
           )}
@@ -721,7 +748,7 @@ export default function TaskModal(props: TaskModalProps) {
         </AnimatePresence>
 
         {/* Sticky footer actions */}
-        <div className="sticky bottom-0 z-20 flex items-center justify-between gap-4 border-t border-paper-200/70 bg-paper-100/95 px-6 sm:px-7 py-3.5 backdrop-blur-xs">
+        <div className="sticky bottom-0 z-20 flex items-center justify-between gap-4 border-t border-paper-200/70 bg-paper-100/95 px-6 sm:px-7 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:py-3.5 backdrop-blur-xs">
           <span className="hidden text-[12px] text-ink-400 sm:block">
             Press{' '}
             <kbd className="rounded-md bg-paper-200 px-1.5 py-0.5 font-sans text-[10.5px] font-medium text-ink-500">
@@ -747,6 +774,38 @@ export default function TaskModal(props: TaskModalProps) {
           </div>
         </div>
       </motion.div>
+
+      {/* Centered date / time picker dialog. Deliberately NOT wrapped in
+          AnimatePresence: closing this dialog always coincides with the
+          selected value changing in the same render, which could interrupt
+          the exit animation and leave an invisible full-screen layer stuck
+          in the DOM, blocking all interaction until reload. A plain CSS
+          entry animation avoids that class of bug entirely. */}
+      {scheduleOpen && (
+        <div
+          className="fixed inset-0 z-[70] bg-[#0c0b0a]/60 backdrop-blur-sm"
+          onClick={() => setScheduleOpen(null)}
+        />
+      )}
+      {scheduleOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={scheduleOpen === 'deadline' ? 'Set deadline' : 'Set due date'}
+          className="pointer-events-none fixed inset-0 z-[71] flex items-center justify-center p-4"
+        >
+          <div className="pointer-events-auto w-full max-w-[340px] animate-pop">
+            <DatePickerPanel
+              key={scheduleOpen}
+              mode={scheduleOpen === 'deadline' ? 'datetime' : 'date'}
+              value={scheduleOpen === 'deadline' ? deadline : dueDate}
+              onChange={scheduleOpen === 'deadline' ? setDeadline : setDueDate}
+              accentColor={scheduleOpen === 'deadline' ? 'amber' : 'pine'}
+              onClose={() => setScheduleOpen(null)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Lightbox image preview */}
       <AnimatePresence>

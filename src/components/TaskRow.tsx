@@ -182,7 +182,15 @@ export default function TaskRow(props: TaskRowProps) {
   const handleAddLinkInline = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newLinkUrl.trim()) return
-    const newLink = { id: String(Date.now()), url: newLinkUrl.trim(), title: newLinkTitle.trim() || undefined }
+    // Match the task modal: auto-prefix scheme-less URLs so the link actually
+    // opens, instead of resolving relative to the app origin.
+    let url = newLinkUrl.trim()
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    const newLink = {
+      id: String(Date.now()),
+      url,
+      title: newLinkTitle.trim() || url.replace(/^https?:\/\/(www\.)?/, ''),
+    }
     onUpdate(task.id, { links: [...(task.links || []), newLink] })
     setNewLinkUrl('')
     setNewLinkTitle('')
@@ -200,7 +208,7 @@ export default function TaskRow(props: TaskRowProps) {
     scale: { duration: 0.18 },
   }
 
-  const rowClass = `group relative flex items-start gap-3 rounded-xl px-3 py-2.5 transition-colors duration-150 ${
+  const rowClass = `group relative flex flex-col rounded-xl px-3 py-2.5 transition-colors duration-150 ${
     done ? '' : 'hover:bg-paper-100'
   } ${reorderable && !done ? (isTouch ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing') : ''} ${
     menuOpen ? 'z-50' : 'z-0'
@@ -217,372 +225,210 @@ export default function TaskRow(props: TaskRowProps) {
 
   const rowContent = (
     <>
-      <button
-        type="button"
-        onClick={handleToggleClick}
-        aria-label={
-          done
-            ? `Move “${task.title}” back to To Do`
-            : task.status === 'in_progress'
-              ? `Move “${task.title}” to Done`
-              : `Move “${task.title}” to In Progress`
-        }
-        aria-pressed={done}
-        className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600"
-      >
-        <CheckCircle done={done} status={task.status} />
-      </button>
-
-      <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onEditDetails?.(task)}>
-        <motion.p
-          animate={{
-            color: done ? 'var(--color-ink-500)' : 'var(--color-ink-900)',
-          }}
-          transition={{ duration: 0.2 }}
-          className="relative break-words text-[16.5px] leading-snug"
+      <div className="flex items-start gap-3 w-full">
+        <button
+          type="button"
+          onClick={handleToggleClick}
+          aria-label={
+            done
+              ? `Move “${task.title}” back to To Do`
+              : task.status === 'in_progress'
+                ? `Move “${task.title}” to Done`
+                : `Move “${task.title}” to In Progress`
+          }
+          aria-pressed={done}
+          className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600"
         >
-          {task.title}
-          {done && (
-            <motion.span
-              initial={{ scaleX: 0 }}
-              animate={{ scaleX: 1 }}
-              exit={{ scaleX: 0 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute left-0 top-[52%] h-[1.5px] w-full origin-left bg-ink-500/80"
-            />
-          )}
-        </motion.p>
+          <CheckCircle done={done} status={task.status} />
+        </button>
 
-        {/* Metadata Indicators Badges */}
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] font-medium">
-          {/* Priority pill */}
-          {task.priority && task.priority !== 'medium' && (
-            <span
-              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider ${
-                task.priority === 'urgent'
-                  ? 'bg-terra-600/20 text-terra-600'
-                  : task.priority === 'high'
-                    ? 'bg-amber-600/15 text-amber-600'
-                    : 'bg-slateblue-600/15 text-slateblue-600'
-              }`}
-            >
-              <FlagIcon className="size-3" />
-              {task.priority}
-            </span>
-          )}
+        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onEditDetails?.(task)}>
+          <motion.p
+            animate={{
+              color: done ? 'var(--color-ink-500)' : 'var(--color-ink-900)',
+            }}
+            transition={{ duration: 0.2 }}
+            className="relative break-words text-[16.5px] leading-snug"
+          >
+            {task.title}
+            {done && (
+              <motion.span
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
+                exit={{ scaleX: 0 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="absolute left-0 top-[52%] h-[1.5px] w-full origin-left bg-ink-500/80"
+              />
+            )}
+          </motion.p>
 
-          {/* Recurrence badge */}
-          {task.recurrence && !done && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/10 px-2 py-0.5 text-[11px] font-medium text-pine-600">
-              <RepeatIcon className="size-3" />
-              {recurrenceLabel(task.recurrence)}
-            </span>
-          )}
+          {/* Metadata Indicators Badges */}
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] font-medium">
+            {/* Priority pill */}
+            {task.priority && task.priority !== 'medium' && (
+              <span
+                className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider ${
+                  task.priority === 'urgent'
+                    ? 'bg-terra-600/20 text-terra-600'
+                    : task.priority === 'high'
+                      ? 'bg-amber-600/15 text-amber-600'
+                      : 'bg-slateblue-600/15 text-slateblue-600'
+                }`}
+              >
+                <FlagIcon className="size-3" />
+                {task.priority}
+              </span>
+            )}
 
-          {/* Due date */}
-          {task.dueDate && !done && (
-            <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
-              <CalendarIcon className="size-3 text-pine-600" />
-              {formatDue(task.dueDate)}
-            </span>
-          )}
+            {/* Recurrence badge */}
+            {task.recurrence && !done && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/10 px-2 py-0.5 text-[11px] font-medium text-pine-600">
+                <RepeatIcon className="size-3" />
+                {recurrenceLabel(task.recurrence)}
+              </span>
+            )}
 
-          {/* Deadline */}
-          {task.deadline && !done && (
-            <span className={`inline-flex items-center gap-1 font-medium ${isDeadlineOverdue(task.deadline) ? 'text-terra-600 font-semibold' : 'text-amber-600'}`}>
-              <ClockIcon className="size-3" />
-              {formatDeadline(task.deadline)}
-            </span>
-          )}
+            {/* Due date */}
+            {task.dueDate && !done && (
+              <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
+                <CalendarIcon className="size-3 text-pine-600" />
+                {formatDue(task.dueDate)}
+              </span>
+            )}
 
-          {/* Subtasks progress badge */}
-          {subtasksCount > 0 && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded(!expanded)
-              }}
-              className="inline-flex items-center gap-1 text-ink-600 bg-paper-200/80 hover:bg-paper-200 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
-            >
-              <SubtaskIcon className="size-3 text-pine-600" />
-              <span>{subtasksDoneCount}/{subtasksCount}</span>
-            </button>
-          )}
+            {/* Deadline */}
+            {task.deadline && !done && (
+              <span className={`inline-flex items-center gap-1 font-medium ${isDeadlineOverdue(task.deadline) ? 'text-terra-600 font-semibold' : 'text-amber-600'}`}>
+                <ClockIcon className="size-3" />
+                {formatDeadline(task.deadline)}
+              </span>
+            )}
 
-          {/* Description note icon badge */}
-          {task.description && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded(!expanded)
-              }}
-              className="inline-flex items-center gap-1 text-ink-600 bg-paper-200/80 hover:bg-paper-200 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
-            >
-              <NotesIcon className="size-3 text-ink-500" />
-              <span>Note</span>
-            </button>
-          )}
+            {/* Subtasks progress badge */}
+            {subtasksCount > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExpanded(!expanded)
+                }}
+                className="inline-flex items-center gap-1 text-ink-600 bg-paper-200/80 hover:bg-paper-200 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+              >
+                <SubtaskIcon className="size-3 text-pine-600" />
+                <span>{subtasksDoneCount}/{subtasksCount}</span>
+              </button>
+            )}
 
-          {/* Links icon badge */}
-          {linksCount > 0 && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded(!expanded)
-              }}
-              className="inline-flex items-center gap-1 text-pine-600 bg-pine-500/10 hover:bg-pine-500/20 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
-            >
-              <LinkIcon className="size-3" />
-              <span>{linksCount} link{linksCount > 1 ? 's' : ''}</span>
-            </button>
-          )}
+            {/* Description note icon badge */}
+            {task.description && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExpanded(!expanded)
+                }}
+                className="inline-flex items-center gap-1 text-ink-600 bg-paper-200/80 hover:bg-paper-200 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+              >
+                <NotesIcon className="size-3 text-ink-500" />
+                <span>Note</span>
+              </button>
+            )}
 
-          {/* Images icon badge */}
-          {imagesCount > 0 && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded(!expanded)
-              }}
-              className="inline-flex items-center gap-1 text-slateblue-600 bg-slateblue-600/10 hover:bg-slateblue-600/20 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
-            >
-              <ImageIcon className="size-3" />
-              <span>{imagesCount} photo{imagesCount > 1 ? 's' : ''}</span>
-            </button>
-          )}
+            {/* Links icon badge */}
+            {linksCount > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExpanded(!expanded)
+                }}
+                className="inline-flex items-center gap-1 text-pine-600 bg-pine-500/10 hover:bg-pine-500/20 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+              >
+                <LinkIcon className="size-3" />
+                <span>{linksCount} link{linksCount > 1 ? 's' : ''}</span>
+              </button>
+            )}
 
-          {/* Details toggle badge - only show if there are details to expand */}
-          {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setExpanded(!expanded)
-              }}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
-                expanded ? 'bg-pine-500/15 text-pine-600' : 'bg-paper-200/80 text-ink-600 hover:bg-paper-200'
-              }`}
-            >
-              <ChevronIcon className={`size-3 transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
-              <span>{expanded ? 'Hide details' : 'Details'}</span>
-            </button>
-          )}
+            {/* Images icon badge */}
+            {imagesCount > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExpanded(!expanded)
+                }}
+                className="inline-flex items-center gap-1 text-slateblue-600 bg-slateblue-600/10 hover:bg-slateblue-600/20 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+              >
+                <ImageIcon className="size-3" />
+                <span>{imagesCount} photo{imagesCount > 1 ? 's' : ''}</span>
+              </button>
+            )}
 
-          {done && task.completedAt && <span className="text-ink-400">Completed {formatDate(task.completedAt)}</span>}
-          {meta && <span className="text-ink-400">{meta}</span>}
+            {/* Details toggle badge - only show if there are details to expand */}
+            {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setExpanded(!expanded)
+                }}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
+                  expanded ? 'bg-pine-500/15 text-pine-600' : 'bg-paper-200/80 text-ink-600 hover:bg-paper-200'
+                }`}
+              >
+                <ChevronIcon className={`size-3 transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
+                <span>{expanded ? 'Hide details' : 'Details'}</span>
+              </button>
+            )}
+
+            {done && task.completedAt && <span className="text-ink-400">Completed {formatDate(task.completedAt)}</span>}
+            {meta && <span className="text-ink-400">{meta}</span>}
+          </div>
         </div>
 
-        {/* Details Content Drawer */}
-        <AnimatePresence initial={false}>
-          {expanded && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-              className="overflow-hidden"
+        <div className="flex shrink-0 items-center gap-0.5">
+          {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setExpanded(!expanded)}
+              aria-label={expanded ? 'Hide task details' : 'Show task details'}
+              title={expanded ? 'Hide details' : 'Show details'}
+              className={`rounded-lg p-1.5 transition-all duration-150 ${
+                expanded ? 'bg-paper-200 text-pine-600' : 'text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'
+              }`}
             >
-              <div
-                className="mt-3 space-y-3.5 rounded-xl bg-paper-200/40 p-3.5 text-[13px] border border-paper-200/70 shadow-2xs"
-                onClick={(e) => e.stopPropagation()}
-              >
-              {/* Description */}
-              {task.description && (
-                <div className="space-y-1">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">Description</span>
-                  <p className="text-[13.5px] leading-relaxed text-ink-800 whitespace-pre-wrap">{task.description}</p>
-                </div>
-              )}
-
-              {/* Subtasks Section with Animated Progress Bar & Inline Adder */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-                    Subtasks {subtasksCount > 0 && `(${subtasksDoneCount}/${subtasksCount})`}
-                  </span>
-                  {subtasksCount > 0 && (
-                    <span className="text-[11px] font-semibold text-pine-600">
-                      {Math.round((subtasksDoneCount / subtasksCount) * 100)}%
-                    </span>
-                  )}
-                </div>
-
-                {subtasksCount > 0 && (
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-paper-200">
-                    <motion.div
-                      className="h-full rounded-full bg-pine-600"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.round((subtasksDoneCount / subtasksCount) * 100)}%` }}
-                      transition={{ duration: 0.3, ease: 'easeOut' }}
-                    />
-                  </div>
-                )}
-
-                {subtasksCount > 0 && (
-                  <div className="space-y-1 pt-1">
-                    {task.subtasks?.map((s) => (
-                      <div key={s.id} className="flex items-center gap-2 text-[13px] py-0.5">
-                        <button
-                          type="button"
-                          onClick={(e) => handleToggleSubtask(e, s.id)}
-                          className={`flex size-4 shrink-0 items-center justify-center rounded transition-colors ${
-                            s.done ? 'bg-pine-600 text-paper-50' : 'border border-ink-400/50 hover:border-pine-500'
-                          }`}
-                        >
-                          {s.done && <CheckIcon className="size-2.5" />}
-                        </button>
-                        <span className={s.done ? 'line-through text-ink-400' : 'text-ink-900'}>{s.title}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Inline Subtask Form */}
-                <form onSubmit={handleAddSubtaskInline} className="flex items-center gap-1.5 pt-1">
-                  <PlusIcon className="size-3.5 shrink-0 text-ink-400" />
-                  <input
-                    type="text"
-                    value={newSubtaskTitle}
-                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                    placeholder="Add subtask (press Enter)…"
-                    className="w-full bg-transparent text-[12.5px] text-ink-900 placeholder:text-ink-400 outline-none"
-                  />
-                </form>
-              </div>
-
-              {/* Links Section */}
-              <div className="space-y-2 pt-1 border-t border-paper-200/50">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">Links</span>
-                  {!showAddLink && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddLink(true)}
-                      className="text-[11px] font-medium text-pine-400 hover:text-pine-300 inline-flex items-center gap-0.5"
-                    >
-                      <PlusIcon className="size-3" />
-                      <span>Add link</span>
-                    </button>
-                  )}
-                </div>
-
-                {linksCount > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {task.links?.map((l) => (
-                      <a
-                        key={l.id}
-                        href={l.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-paper-100 px-2.5 py-1.5 text-[12px] font-medium text-pine-600 shadow-2xs hover:bg-pine-500/10 transition-colors"
-                      >
-                        <ExternalLinkIcon className="size-3.5" />
-                        <span>{l.title || l.url}</span>
-                      </a>
-                    ))}
-                  </div>
-                )}
-
-                {showAddLink && (
-                  <form onSubmit={handleAddLinkInline} className="space-y-1.5 rounded-lg bg-paper-100 p-2 border border-paper-200">
-                    <input
-                      type="url"
-                      value={newLinkUrl}
-                      onChange={(e) => setNewLinkUrl(e.target.value)}
-                      placeholder="https://..."
-                      autoFocus
-                      className="w-full bg-transparent text-[12px] text-ink-900 outline-none placeholder:text-ink-400"
-                    />
-                    <div className="flex items-center justify-between gap-2">
-                      <input
-                        type="text"
-                        value={newLinkTitle}
-                        onChange={(e) => setNewLinkTitle(e.target.value)}
-                        placeholder="Title (optional)"
-                        className="w-full bg-transparent text-[12px] text-ink-900 outline-none placeholder:text-ink-400"
-                      />
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setShowAddLink(false)}
-                          className="px-2 py-0.5 text-[11px] text-ink-500 hover:text-ink-900"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={!newLinkUrl.trim()}
-                          className="rounded bg-pine-600 px-2 py-0.5 text-[11px] font-medium text-paper-50 disabled:opacity-50"
-                        >
-                          Add
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                )}
-              </div>
-
-              {/* Images Section */}
-              {imagesCount > 0 && (
-                <div className="space-y-1.5 pt-1 border-t border-paper-200/50">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">Images</span>
-                  <ImageThumbs refs={task.images ?? []} onPreview={setLightboxImage} imgClassName="size-16" />
-                </div>
-              )}
-              </div>
-            </motion.div>
+              <ChevronIcon className={`size-[18px] transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
+            </motion.button>
           )}
-        </AnimatePresence>
-      </div>
+          <div className="relative">
+            <motion.button
+              type="button"
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={handleMenuClick}
+              aria-label={`Actions for “${task.title}”`}
+              aria-expanded={menuOpen}
+              className="rounded-lg p-1.5 text-ink-400 transition-all duration-150 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
+            >
+              <EllipsisVerticalIcon className="size-[18px]" />
+            </motion.button>
 
-      <div className="flex shrink-0 items-center gap-0.5">
-        {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            onClick={() => setExpanded(!expanded)}
-            aria-label={expanded ? 'Hide task details' : 'Show task details'}
-            title={expanded ? 'Hide details' : 'Show details'}
-            className={`rounded-lg p-1.5 transition-all duration-150 ${
-              expanded ? 'bg-paper-200 text-pine-600' : 'text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'
-            }`}
-          >
-            <ChevronIcon className={`size-[18px] transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
-          </motion.button>
-        )}
-        <div className="relative">
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            onClick={handleMenuClick}
-            aria-label={`Actions for “${task.title}”`}
-            aria-expanded={menuOpen}
-            className="rounded-lg p-1.5 text-ink-400 transition-all duration-150 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
-          >
-            <EllipsisVerticalIcon className="size-[18px]" />
-          </motion.button>
-
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
-                transition={{ type: 'spring', stiffness: 450, damping: 26 }}
-                style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                className={`absolute right-0 z-50 w-64 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-2 shadow-2xl backdrop-blur-md border border-paper-200/90 text-[13px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                  menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-                }`}
-                role="menu"
-                onClick={(e) => e.stopPropagation()}
-              >
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
+                  transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                  style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
+                  className={`absolute right-0 z-50 w-64 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-2 shadow-2xl backdrop-blur-md border border-paper-200/90 text-[13px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                    menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                  }`}
+                  role="menu"
+                  onClick={(e) => e.stopPropagation()}
+                >
             {onEditDetails && (
               <>
                 <button
@@ -781,6 +627,196 @@ export default function TaskRow(props: TaskRowProps) {
       </AnimatePresence>
     </div>
   </div>
+</div>
+
+  {/* Details Content Drawer */}
+  <AnimatePresence initial={false}>
+    {expanded && (
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: 'auto' }}
+        exit={{ opacity: 0, height: 0 }}
+        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full overflow-hidden"
+      >
+        <div
+          className="mt-3 space-y-4 rounded-2xl bg-paper-100/90 p-4 md:p-5 text-[15px] shadow-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Description */}
+          {task.description && (
+            <div className="space-y-1.5">
+              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">Description</span>
+              <p className="text-[15px] md:text-[15.5px] leading-relaxed text-ink-900 whitespace-pre-wrap selection:bg-pine-500/20">{task.description}</p>
+            </div>
+          )}
+
+          {/* Subtasks Section with Animated Progress Bar & Inline Adder */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">
+                Subtasks {subtasksCount > 0 && `(${subtasksDoneCount}/${subtasksCount})`}
+              </span>
+              {subtasksCount > 0 && (
+                <span className="text-[12.5px] font-semibold text-pine-600">
+                  {Math.round((subtasksDoneCount / subtasksCount) * 100)}%
+                </span>
+              )}
+            </div>
+
+            {subtasksCount > 0 && (
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-paper-200">
+                <motion.div
+                  className="h-full rounded-full bg-pine-600"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.round((subtasksDoneCount / subtasksCount) * 100)}%` }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                />
+              </div>
+            )}
+
+            {subtasksCount > 0 && (
+              <div className="space-y-1 pt-1">
+                {task.subtasks?.map((s) => (
+                  <div
+                    key={s.id}
+                    className="flex min-h-[42px] items-center gap-3 rounded-xl px-2.5 py-2 -mx-1 hover:bg-paper-200/50 transition-colors"
+                  >
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.88 }}
+                      onClick={(e) => handleToggleSubtask(e, s.id)}
+                      aria-label={`Toggle subtask “${s.title}”`}
+                      className={`flex size-5 shrink-0 items-center justify-center rounded-md transition-colors ${
+                        s.done ? 'bg-pine-600 text-paper-50' : 'border border-ink-400/60 hover:border-pine-500'
+                      }`}
+                    >
+                      {s.done && <CheckIcon className="size-3" />}
+                    </motion.button>
+                    <span className={`text-[15px] leading-snug ${s.done ? 'line-through text-ink-400' : 'text-ink-900'}`}>{s.title}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Inline Subtask Form */}
+            <form onSubmit={handleAddSubtaskInline} className="flex min-h-[42px] items-center gap-2.5 rounded-xl bg-paper-200/40 px-3 py-2 focus-within:bg-paper-200/70 focus-within:ring-1 focus-within:ring-pine-500/30 transition-all">
+              <PlusIcon className="size-4 shrink-0 text-ink-400" />
+              <input
+                type="text"
+                value={newSubtaskTitle}
+                onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                placeholder="Add subtask (press Enter)…"
+                className="w-full bg-transparent text-[14.5px] text-ink-900 placeholder:text-ink-400 outline-none"
+              />
+            </form>
+          </div>
+
+          {/* Links Section */}
+          <div className="space-y-2.5 pt-1.5 border-t border-paper-200/40">
+            <div className="flex items-center justify-between">
+              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">Links</span>
+              {!showAddLink && (
+                <button
+                  type="button"
+                  onClick={() => setShowAddLink(true)}
+                  className="text-[12.5px] font-medium text-pine-500 hover:text-pine-400 inline-flex items-center gap-1 py-1 px-1.5 rounded-md hover:bg-paper-200/40 transition-colors"
+                >
+                  <PlusIcon className="size-3.5" />
+                  <span>Add link</span>
+                </button>
+              )}
+            </div>
+
+            {linksCount > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {task.links?.map((l) => (
+                  <a
+                    key={l.id}
+                    href={l.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-paper-200/60 px-3 py-2 text-[13.5px] font-medium text-pine-500 hover:bg-pine-500/15 hover:text-pine-400 transition-colors shadow-2xs"
+                  >
+                    <ExternalLinkIcon className="size-3.5" />
+                    <span>{l.title || l.url}</span>
+                  </a>
+                ))}
+              </div>
+            )}
+
+            {showAddLink && (
+              <form onSubmit={handleAddLinkInline} className="space-y-2 rounded-xl bg-paper-200/40 p-3">
+                <input
+                  type="url"
+                  value={newLinkUrl}
+                  onChange={(e) => setNewLinkUrl(e.target.value)}
+                  placeholder="https://..."
+                  autoFocus
+                  className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-[13.5px] text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
+                />
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
+                  <input
+                    type="text"
+                    value={newLinkTitle}
+                    onChange={(e) => setNewLinkTitle(e.target.value)}
+                    placeholder="Title (optional)"
+                    className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-[13.5px] text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
+                  />
+                  <div className="flex items-center justify-end gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddLink(false)}
+                      className="px-3 py-1.5 rounded-lg text-[12.5px] text-ink-500 hover:text-ink-900 hover:bg-paper-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={!newLinkUrl.trim()}
+                      className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-[12.5px] font-medium text-paper-50 disabled:opacity-50 hover:bg-pine-500 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </div>
+
+          {/* Images Section */}
+          {imagesCount > 0 && (
+            <div className="space-y-2 pt-1.5 border-t border-paper-200/40">
+              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">Images</span>
+              <ImageThumbs refs={task.images ?? []} onPreview={setLightboxImage} imgClassName="size-20 rounded-xl" />
+            </div>
+          )}
+
+          {/* Footer Actions */}
+          <div className="pt-2 border-t border-paper-200/40 flex items-center justify-between">
+            {onEditDetails && (
+              <button
+                type="button"
+                onClick={() => onEditDetails(task)}
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-500 hover:text-pine-500 transition-colors py-1"
+              >
+                <PencilIcon className="size-3.5" />
+                <span>Edit full details...</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setExpanded(false)}
+              className="text-[12px] text-ink-400 hover:text-ink-600 transition-colors ml-auto py-1"
+            >
+              Collapse
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
 
       <AnimatePresence>
         {lightboxImage && (

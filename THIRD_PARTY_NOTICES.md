@@ -14,7 +14,6 @@ a copy is placed in the production build output (`dist/THIRD_PARTY_NOTICES.md`).
 | Framer Motion | 13.x | MIT | Framer B.V. |
 | canvas-confetti | 1.9.x | ISC | Kiril Vatev |
 | Figtree (Variable) | 5.x | SIL OFL 1.1 | The Figtree Project Authors |
-| Instrument Serif | 5.x | SIL OFL 1.1 | The Instrument Serif Project Authors |
 | @capacitor/core | 8.x | MIT | Drifty Co. (2017-present) |
 | @capacitor/filesystem | 8.x | MIT | Ionic (2025) |
 | @capacitor/status-bar | 8.x | MIT | Ionic |
@@ -34,14 +33,11 @@ license text actually shipped with the package.
 
 ---
 
-## SIL Open Font License v1.1 — Figtree & Instrument Serif
+## SIL Open Font License v1.1 — Figtree
 
 ```
 Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
 Figtree-Italic[wght].ttf: Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
-
-Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif)
-InstrumentSerif-Italic.ttf: Copyright 2022 The Instrument Serif Project Authors (https://github.com/Instrument/instrument-serif)
 
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:

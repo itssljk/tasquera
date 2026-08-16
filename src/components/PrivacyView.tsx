@@ -98,7 +98,7 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
             <li>The file contains your task data, so treat it like any private file you share.</li>
           </ul>
           <p>
-            {APP_NAME} does not request access to all files on your device, and it does not upload or transmit this folder anywhere.
+            On Android 11 and newer, {APP_NAME} requests the system’s “All files access” permission — it needs it to read and write the sync folder you choose (<code>Documents/Tsqsync/</code>). It never scans, modifies, or uploads any other files, and it never transmits this folder anywhere.
           </p>
         </section>
 

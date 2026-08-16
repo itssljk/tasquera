@@ -336,3 +336,46 @@ export function InfoIcon(props: IconProps) {
   )
 }
 
+export function BellIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M10 3.2a4.3 4.3 0 0 0-4.3 4.3c0 3.2-1 4.3-1.6 5h11.8c-.6-.7-1.6-1.8-1.6-5A4.3 4.3 0 0 0 10 3.2z" />
+      <path d="M8.4 15.5a1.8 1.8 0 0 0 3.2 0" />
+    </svg>
+  )
+}
+
+export function StarIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <polygon points="10 2.8 12.4 7.6 17.6 8.4 13.8 12.1 14.7 17.2 10 14.8 5.3 17.2 6.2 12.1 2.4 8.4 7.6 7.6 10 2.8" />
+    </svg>
+  )
+}
+
+export function StarFilledIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" {...props}>
+      <polygon points="10 2.8 12.4 7.6 17.6 8.4 13.8 12.1 14.7 17.2 10 14.8 5.3 17.2 6.2 12.1 2.4 8.4 7.6 7.6 10 2.8" />
+    </svg>
+  )
+}
+
+export function KanbanIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <rect x="3.5" y="4" width="3.8" height="12" rx="1" />
+      <rect x="8.1" y="4" width="3.8" height="8.5" rx="1" />
+      <rect x="12.7" y="4" width="3.8" height="10" rx="1" />
+    </svg>
+  )
+}
+
+export function ListIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M7 6h9.5M7 10h9.5M7 14h9.5M3.5 6h.01M3.5 10h.01M3.5 14h.01" strokeWidth={2} />
+    </svg>
+  )
+}
+

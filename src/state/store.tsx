@@ -12,6 +12,8 @@ const LEGACY_KEY = 'tasquera.tasks.v1'
 const DEFAULT_SETTINGS: AppSettings = {
   showQuickAdd: false,
   autoArchiveDays: 7,
+  notificationsEnabled: false,
+  notificationTime: '09:00',
 }
 
 interface Persisted {
@@ -77,10 +79,12 @@ export interface StoreValue {
   mergeState: (remoteTasks: Task[], remoteCollections: Collection[], remoteTombstones?: Tombstone[]) => void
   reorderTasks: (ids: string[]) => void
   reorderCollections: (kind: CollectionKind, reordered: Collection[]) => void
+  reorderFavorites: (reordered: Collection[]) => void
   reorderColumnTasks: (status: TaskStatus, reordered: Task[]) => void
   addCollection: (kind: CollectionKind, name: string) => void
   renameCollection: (id: string, name: string) => void
   deleteCollection: (id: string) => void
+  toggleFavoriteCollection: (id: string) => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -387,6 +391,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           tasks: parsed.tasks!.map(normalizeTask),
           collections: (parsed.collections as Collection[]).map(normalizeCollection),
           tombstones: (parsed.tombstones ?? []).map(normalizeTombstone),
+          // Restore saved preferences too, so a backup is a true snapshot of
+          // the app (not just the tasks).
+          settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
         }))
         return true
       } catch {
@@ -426,9 +433,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
     reorderCollections: (kind, reordered) =>
       commitState((s) => {
+        // Favorited collections are not part of the section's reorder list;
+        // treat them as fixed anchors so dragging non-favorites never clobbers
+        // or duplicates them.
         let idx = 0
         const next = s.collections.map((c) => {
-          if (c.kind === kind && idx < reordered.length) {
+          if (c.kind === kind && !c.favorite && idx < reordered.length) {
             return reordered[idx++]
           }
           return c
@@ -454,6 +464,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           id: freshId(trimmed, s.collections),
           kind,
           name: trimmed,
+          favorite: false,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
@@ -476,6 +487,44 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         tasks: s.tasks.map((t) => (t.listId === id ? { ...t, listId: null, updatedAt: Date.now() } : t)),
         tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'collection', deletedAt: Date.now() }),
       })),
+
+    toggleFavoriteCollection: (id) =>
+      commitState((s) => {
+        const target = s.collections.find((c) => c.id === id)
+        if (!target) return s
+        if (target.favorite) {
+          // Unfavoriting keeps the collection in place; it simply stops
+          // appearing in the Favorites section.
+          return {
+            ...s,
+            collections: s.collections.map((c) =>
+              c.id === id ? { ...c, favorite: false, updatedAt: Date.now() } : c
+            ),
+          }
+        }
+        // Favoriting pins the collection to the top of the Favorites section.
+        // updatedAt is bumped so the pinned state propagates to other devices
+        // via the newest-wins sync merge. Favorites are hidden from their own
+        // kind's section, so array order is the source of truth for the pinned
+        // order and can be drag-reordered.
+        const rest = s.collections.filter((c) => c.id !== id)
+        return {
+          ...s,
+          collections: [{ ...target, favorite: true, updatedAt: Date.now() }, ...rest],
+        }
+      }),
+
+    reorderFavorites: (reordered) =>
+      commitState((s) => {
+        let idx = 0
+        const next = s.collections.map((c) => {
+          if (c.favorite && idx < reordered.length) {
+            return reordered[idx++]
+          }
+          return c
+        })
+        return { ...s, collections: next }
+      }),
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

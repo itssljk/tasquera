@@ -7,13 +7,18 @@ import {
   ArchiveIcon,
   CalendarIcon,
   CheckCircleIcon,
+  ChevronIcon,
   EllipsisIcon,
   GripVerticalIcon,
   InboxIcon,
+  KanbanIcon,
+  ListIcon,
   LogoMark,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  StarFilledIcon,
+  StarIcon,
   SunIcon,
   UpcomingIcon,
 } from './icons'
@@ -23,8 +28,28 @@ import { SidebarInstallButton } from './InstallPWA'
 const menuItem =
   'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13.5px] text-ink-700 transition-colors duration-100 hover:bg-paper-100 hover:text-ink-900 active:bg-paper-200'
 
+const COLLAPSED_STORAGE_KEY = 'tasquera.sidebar_collapsed'
+
+interface CollapsedState {
+  boards?: boolean
+  lists?: boolean
+  favorites?: boolean
+}
+
+function loadCollapsedState(): CollapsedState {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {
+    // ignore
+  }
+  return {}
+}
+
 interface SidebarProps {
   showQuickAdd?: boolean
+  collapsed?: boolean
+  onToggleCollapsed?: () => void
   route: Route
   collections: Collection[]
   countFor: (route: Route) => number
@@ -38,6 +63,8 @@ interface SidebarProps {
   onRenameCollection: (id: string, name: string) => void
   onDeleteCollection: (id: string) => void
   onReorderCollections?: (kind: CollectionKind, reordered: Collection[]) => void
+  onReorderFavorites?: (reordered: Collection[]) => void
+  onToggleFavoriteCollection?: (id: string) => void
   onNavigate?: () => void
   canInstallPWA?: boolean
   onInstallPWA?: () => void
@@ -50,6 +77,7 @@ function NavLink({
   label,
   count,
   onClick,
+  collapsed,
 }: {
   href: string
   active: boolean
@@ -57,6 +85,7 @@ function NavLink({
   label: string
   count?: number
   onClick?: () => void
+  collapsed?: boolean
 }) {
   const handleClick = () => {
     window.location.hash = href
@@ -66,8 +95,12 @@ function NavLink({
     <button
       type="button"
       onClick={handleClick}
+      aria-label={collapsed ? label : undefined}
       aria-current={active ? 'page' : undefined}
+      title={collapsed ? label : undefined}
       className={`group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] transition-colors duration-150 ${
+        collapsed ? 'justify-center px-0' : ''
+      } ${
         active ? 'font-medium text-ink-900' : 'text-ink-500 hover:bg-paper-50/60 hover:text-ink-900'
       }`}
     >
@@ -79,27 +112,71 @@ function NavLink({
         />
       )}
       <span className={`relative z-10 shrink-0 transition-colors ${active ? 'text-pine-400' : 'text-ink-400'}`}>{icon}</span>
-      <span className="relative z-10 min-w-0 flex-1 truncate">{label}</span>
-      {count !== undefined && count > 0 && (
-        <span className="relative z-10 shrink-0 text-[12.5px] tabular-nums text-ink-400">{count}</span>
+      {!collapsed && (
+        <>
+          <span className="relative z-10 min-w-0 flex-1 truncate">{label}</span>
+          {count !== undefined && count > 0 && (
+            <span className="relative z-10 shrink-0 text-[12.5px] tabular-nums text-ink-400">{count}</span>
+          )}
+        </>
       )}
     </button>
   )
 }
 
-function SectionLabel({ label, onAdd }: { label: string; onAdd: () => void }) {
+function SectionHeader({
+  label,
+  count,
+  collapsed,
+  onToggle,
+  onAdd,
+  addTooltip,
+}: {
+  label: string
+  count?: number
+  collapsed: boolean
+  onToggle: () => void
+  onAdd?: () => void
+  addTooltip?: string
+}) {
   return (
-    <div className="group mb-0.5 mt-4 flex items-center justify-between px-3">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">{label}</span>
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={onAdd}
-        aria-label={`Add ${label.toLowerCase().slice(0, -1)}`}
-        className="rounded-md p-1 text-ink-400 transition-opacity duration-150 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
+    <div className="group mb-1 mt-4 flex items-center justify-between px-2">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex min-w-0 flex-1 items-center gap-1.5 py-1 text-left select-none group/toggle rounded-md hover:text-ink-900 focus-visible:outline-none"
+        aria-expanded={!collapsed}
       >
-        <PlusIcon className="size-3.5" />
-      </motion.button>
+        <motion.span
+          animate={{ rotate: collapsed ? 0 : 90 }}
+          transition={{ duration: 0.15, ease: 'easeInOut' }}
+          className="text-ink-400 group-hover/toggle:text-ink-700 flex shrink-0"
+        >
+          <ChevronIcon className="size-3 stroke-[2.4]" />
+        </motion.span>
+        <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-ink-400 group-hover/toggle:text-ink-700 transition-colors">
+          {label}
+        </span>
+        {count !== undefined && count > 0 && (
+          <span className="text-[10px] tabular-nums font-semibold text-ink-400/80 bg-paper-200/60 px-1.5 py-0.5 rounded-full leading-none">
+            {count}
+          </span>
+        )}
+      </button>
+      {onAdd && (
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={(e) => {
+            e.stopPropagation()
+            onAdd()
+          }}
+          aria-label={addTooltip ?? `Add ${label.toLowerCase().slice(0, -1)}`}
+          className="rounded-md p-1 text-ink-400 transition-opacity duration-150 hover:bg-paper-200/60 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
+        >
+          <PlusIcon className="size-3.5" />
+        </motion.button>
+      )}
     </div>
   )
 }
@@ -107,6 +184,8 @@ function SectionLabel({ label, onAdd }: { label: string; onAdd: () => void }) {
 export default function Sidebar(props: SidebarProps) {
   const {
     showQuickAdd = false,
+    collapsed = false,
+    onToggleCollapsed,
     route,
     collections,
     countFor,
@@ -120,6 +199,8 @@ export default function Sidebar(props: SidebarProps) {
     onRenameCollection,
     onDeleteCollection,
     onReorderCollections,
+    onReorderFavorites,
+    onToggleFavoriteCollection,
     onNavigate,
     canInstallPWA,
     onInstallPWA,
@@ -135,9 +216,54 @@ export default function Sidebar(props: SidebarProps) {
   const [armedDelete, setArmedDelete] = useState<string | null>(null)
   const [quickAddValue, setQuickAddValue] = useState('')
   const [isFocused, setIsFocused] = useState(false)
+  const [sectionCollapsed, setSectionCollapsed] = useState<CollapsedState>(loadCollapsedState)
 
-  const boards = collections.filter((c) => c.kind === 'board')
-  const lists = collections.filter((c) => c.kind === 'list')
+  // Favorites are the pinned view: favorited collections show only in the
+  // Favorites section (in array order, drag-reorderable), not duplicated in
+  // their own kind's section.
+  const favorites = collections.filter((c) => c.favorite)
+  const boards = collections.filter((c) => c.kind === 'board' && !c.favorite)
+  const lists = collections.filter((c) => c.kind === 'list' && !c.favorite)
+
+  const toggleCollapsed = (key: keyof CollapsedState) => {
+    setSectionCollapsed((prev) => {
+      const next = { ...prev, [key]: !prev[key] }
+      try {
+        localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        // ignore
+      }
+      return next
+    })
+  }
+
+  // Expand the active collection's section when the user navigates to it, so
+  // they can see where they are. Only fires on an actual navigation (route id
+  // change) — if the user collapses the section while already viewing it, that
+  // choice is respected instead of being undone on every render.
+  const lastRouteIdRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (route.name !== 'collection') {
+      lastRouteIdRef.current = null
+      return
+    }
+    const activeCol = collections.find((c) => c.id === route.id)
+    if (!activeCol) return
+    const key: keyof CollapsedState = activeCol.kind === 'board' ? 'boards' : 'lists'
+    if (route.id !== lastRouteIdRef.current && sectionCollapsed[key]) {
+      setSectionCollapsed((prev) => {
+        if (!prev[key]) return prev
+        const next = { ...prev, [key]: false }
+        try {
+          localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(next))
+        } catch {
+          // ignore
+        }
+        return next
+      })
+    }
+    lastRouteIdRef.current = route.id
+  }, [route, collections, sectionCollapsed])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -154,7 +280,7 @@ export default function Sidebar(props: SidebarProps) {
         if (anyVisible) return
       }
       e.preventDefault()
-      if (showQuickAdd && quickAddRef?.current && selfVisible) {
+      if (showQuickAdd && !collapsed && quickAddRef?.current && selfVisible) {
         quickAddRef.current.focus()
       } else {
         onOpenCreateModal()
@@ -162,7 +288,7 @@ export default function Sidebar(props: SidebarProps) {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [quickAddRef, showQuickAdd, onOpenCreateModal])
+  }, [quickAddRef, showQuickAdd, collapsed, onOpenCreateModal])
 
   const handleQuickAdd = (e: FormEvent) => {
     e.preventDefault()
@@ -174,6 +300,18 @@ export default function Sidebar(props: SidebarProps) {
 
   const beginAdd = (kind: CollectionKind) => {
     isSubmittingRef.current = false
+    const key: keyof CollapsedState = kind === 'board' ? 'boards' : 'lists'
+    if (sectionCollapsed[key]) {
+      setSectionCollapsed((prev) => {
+        const next = { ...prev, [key]: false }
+        try {
+          localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(next))
+        } catch {
+          // ignore
+        }
+        return next
+      })
+    }
     setAdding(kind)
     setAddName('')
   }
@@ -256,10 +394,190 @@ export default function Sidebar(props: SidebarProps) {
       </motion.form>
     ) : null
 
-  const collectionRow = (c: Collection) => {
+  const collectionRow = (c: Collection, isFavoriteRow = false) => {
     const active = route.name === 'collection' && route.id === c.id
     const menuOpen = menu?.kind === 'collection' && menu.id === c.id
     const count = countFor({ name: 'collection', id: c.id, kind: c.kind })
+
+    const innerContent = (
+      <div
+        className={`relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors duration-150 ${
+          active ? '' : 'hover:bg-paper-50/60'
+        }`}
+        style={{ zIndex: menuOpen ? 40 : undefined }}
+      >
+        {active && (
+          <motion.div
+            layoutId="activeNavHighlight"
+            transition={{ type: 'spring', stiffness: 450, damping: 32 }}
+            className="absolute inset-0 rounded-xl bg-paper-50 shadow-2xs"
+          />
+        )}
+
+        {!isFavoriteRow && renamingId !== c.id && (
+          <span className="relative z-10 -ml-1 mr-2 shrink-0 text-ink-300 transition-opacity duration-150 cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 coarse:opacity-0 coarse:cursor-default">
+            <GripVerticalIcon className="size-3.5" />
+          </span>
+        )}
+
+        {isFavoriteRow && (
+          <>
+            <span className="relative z-10 -ml-0.5 mr-2 shrink-0 text-ink-400 md:hidden">
+              {c.kind === 'board' ? <KanbanIcon className="size-3.5" /> : <ListIcon className="size-3.5" />}
+            </span>
+            <span className="relative z-10 -ml-1 mr-2 hidden shrink-0 text-ink-300 transition-opacity duration-150 cursor-grab active:cursor-grabbing md:block md:opacity-0 md:group-hover:opacity-100">
+              <GripVerticalIcon className="size-3.5" />
+            </span>
+          </>
+        )}
+
+        {renamingId === c.id ? (
+          <form onSubmit={commitRename} className="relative z-10 min-w-0 flex-1">
+            <input
+              autoFocus
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && cancelRename()}
+              onBlur={cancelRename}
+              aria-label={`Rename ${c.name}`}
+              className="w-full rounded-md bg-paper-50 px-2 py-0.5 text-[14px] text-ink-900 outline-none ring-2 ring-pine-500/25"
+            />
+          </form>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              window.location.hash = routeHref({ name: 'collection', id: c.id, kind: c.kind })
+              onNavigate?.()
+            }}
+            aria-current={active ? 'page' : undefined}
+            className={`relative z-10 flex min-w-0 flex-1 items-center text-left text-[15px] transition-colors duration-150 ${
+              active ? 'font-medium text-ink-900' : 'text-ink-500 hover:text-ink-900'
+            }`}
+          >
+            <span className="min-w-0 flex-1 truncate">{c.name}</span>
+          </button>
+        )}
+
+        <div className="relative z-10 flex shrink-0 items-center justify-end">
+          {renamingId !== c.id && (
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.85 }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleFavoriteCollection?.(c.id)
+              }}
+              aria-label={c.favorite ? `Unfavorite ${c.name}` : `Favorite ${c.name}`}
+              aria-pressed={c.favorite}
+              title={c.favorite ? 'Unfavorite' : 'Favorite'}
+              className={`rounded-lg p-1 transition-all duration-150 ${
+                c.favorite
+                  ? 'text-pine-400 hover:bg-paper-200 hover:opacity-90'
+                  : 'text-ink-400 hover:bg-paper-200 hover:text-pine-400 md:hidden md:group-hover:block md:focus-visible:block'
+              }`}
+            >
+              {c.favorite ? (
+                <StarFilledIcon className="size-4" />
+              ) : (
+                <StarIcon className="size-4" />
+              )}
+            </motion.button>
+          )}
+          {count > 0 && (
+            <span
+              className={`text-[12.5px] tabular-nums text-ink-400 transition-opacity duration-150 ${
+                renamingId !== c.id ? 'md:group-hover:opacity-0' : ''
+              } ${menuOpen ? 'opacity-0' : ''}`}
+            >
+              {count}
+            </span>
+          )}
+          {renamingId !== c.id && (
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleMenu(menuOpen ? null : c.id)
+              }}
+              aria-label={`Actions for ${c.name}`}
+              aria-expanded={menuOpen}
+              className={`rounded-lg p-1 text-ink-400 transition-all duration-150 hover:bg-paper-200 hover:text-ink-700 md:absolute md:right-0 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 ${
+                menuOpen ? '!opacity-100' : ''
+              }`}
+            >
+              <EllipsisIcon className="size-4" />
+            </motion.button>
+          )}
+        </div>
+      </div>
+    )
+
+    const menuElement = (
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: -2 }}
+            transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+            style={{ transformOrigin: 'top right' }}
+            className="absolute right-2 top-full z-50 mt-1 w-44 rounded-xl bg-paper-50 p-1.5 shadow-lg border border-paper-200/50"
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className={menuItem}
+              onClick={() => {
+                onToggleFavoriteCollection?.(c.id)
+                onMenu(null)
+              }}
+            >
+              {c.favorite ? (
+                <>
+                  <StarFilledIcon className="size-4 text-pine-400 shrink-0" />
+                  <span>Unfavorite</span>
+                </>
+              ) : (
+                <>
+                  <StarIcon className="size-4 text-ink-500 shrink-0" />
+                  <span>Favorite</span>
+                </>
+              )}
+            </button>
+            <button className={menuItem} onClick={() => beginRename(c)}>
+              Rename
+            </button>
+            <button
+              className={`${menuItem} ${armedDelete === c.id ? 'font-medium text-terra-600' : ''}`}
+              onClick={() => handleDelete(c.id)}
+            >
+              {armedDelete === c.id ? 'Delete · sure?' : 'Delete'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    )
+
+    if (isFavoriteRow) {
+      return (
+        <Reorder.Item
+          key={`fav-${c.id}`}
+          value={c}
+          dragListener={!isTouch}
+          initial={{ opacity: 0, x: -8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -8 }}
+          transition={{ duration: 0.16, ease: 'easeOut' }}
+          className={`group relative select-none ${menuOpen ? 'z-50' : 'z-0'}`}
+          style={{ zIndex: menuOpen ? 50 : undefined }}
+        >
+          {innerContent}
+          {menuElement}
+        </Reorder.Item>
+      )
+    }
 
     return (
       <Reorder.Item
@@ -270,126 +588,57 @@ export default function Sidebar(props: SidebarProps) {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -6 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
-        className="group relative select-none"
+        className={`group relative select-none ${menuOpen ? 'z-50' : 'z-0'}`}
+        style={{ zIndex: menuOpen ? 50 : undefined }}
       >
-        <div
-          className={`relative flex items-center justify-between rounded-xl px-3 py-2 transition-colors duration-150 ${
-            active ? '' : 'hover:bg-paper-50/60'
-          }`}
-          style={{ zIndex: menuOpen ? 40 : undefined }}
-        >
-          {active && (
-            <motion.div
-              layoutId="activeNavHighlight"
-              transition={{ type: 'spring', stiffness: 450, damping: 32 }}
-              className="absolute inset-0 rounded-xl bg-paper-50 shadow-2xs"
-            />
-          )}
-
-          {renamingId !== c.id && (
-            <span className="relative z-10 -ml-1 mr-2 shrink-0 text-ink-300 transition-opacity duration-150 cursor-grab active:cursor-grabbing md:opacity-0 md:group-hover:opacity-100 coarse:opacity-0 coarse:cursor-default">
-              <GripVerticalIcon className="size-3.5" />
-            </span>
-          )}
-
-          {renamingId === c.id ? (
-            <form onSubmit={commitRename} className="relative z-10 min-w-0 flex-1">
-              <input
-                autoFocus
-                value={renameName}
-                onChange={(e) => setRenameName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Escape' && cancelRename()}
-                onBlur={cancelRename}
-                aria-label={`Rename ${c.name}`}
-                className="w-full rounded-md bg-paper-50 px-2 py-0.5 text-[14px] text-ink-900 outline-none ring-2 ring-pine-500/25"
-              />
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                window.location.hash = routeHref({ name: 'collection', id: c.id, kind: c.kind })
-                onNavigate?.()
-              }}
-              aria-current={active ? 'page' : undefined}
-              className={`relative z-10 flex min-w-0 flex-1 items-center text-left text-[15px] transition-colors duration-150 ${
-                active ? 'font-medium text-ink-900' : 'text-ink-500 hover:text-ink-900'
-              }`}
-            >
-              <span className="min-w-0 flex-1 truncate">{c.name}</span>
-            </button>
-          )}
-
-          <div className="relative z-10 flex shrink-0 items-center justify-end">
-            {count > 0 && (
-              <span
-                className={`text-[12.5px] tabular-nums text-ink-400 transition-opacity duration-150 ${
-                  renamingId !== c.id ? 'md:group-hover:opacity-0' : ''
-                } ${menuOpen ? 'opacity-0' : ''}`}
-              >
-                {count}
-              </span>
-            )}
-            {renamingId !== c.id && (
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  toggleMenu(c.id)
-                }}
-                aria-label={`Actions for ${c.name}`}
-                aria-expanded={menuOpen}
-                className={`rounded-lg p-1 text-ink-400 transition-all duration-150 hover:bg-paper-200 hover:text-ink-700 md:absolute md:right-0 md:opacity-0 md:group-hover:opacity-100 md:focus-visible:opacity-100 ${
-                  menuOpen ? '!opacity-100' : ''
-                }`}
-              >
-                <EllipsisIcon className="size-4" />
-              </motion.button>
-            )}
-          </div>
-        </div>
-        <AnimatePresence>
-          {menuOpen && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.92, y: -4 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: -2 }}
-              transition={{ type: 'spring', stiffness: 450, damping: 26 }}
-              style={{ transformOrigin: 'top right' }}
-              className="absolute right-2 top-full z-50 mt-1 w-40 rounded-xl bg-paper-50 p-1.5 shadow-lg"
-              role="menu"
-            >
-              <button className={menuItem} onClick={() => beginRename(c)}>
-                Rename
-              </button>
-              <button
-                className={`${menuItem} ${armedDelete === c.id ? 'font-medium text-terra-600' : ''}`}
-                onClick={() => handleDelete(c.id)}
-              >
-                {armedDelete === c.id ? 'Delete · sure?' : 'Delete'}
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {innerContent}
+        {menuElement}
       </Reorder.Item>
     )
   }
 
   return (
-    <aside ref={rootRef} className="flex h-full w-64 shrink-0 flex-col bg-paper-100 border-r border-paper-200/40">
-      <div className="flex items-center gap-2.5 px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] md:pt-5">
-        <LogoMark className="size-6" />
+    <aside
+      ref={rootRef}
+      className={`flex h-full shrink-0 flex-col border-r border-paper-200/40 bg-paper-100 transition-[width] duration-200 ease-out ${
+        collapsed ? 'w-16' : 'w-64'
+      }`}
+    >
+      <div
+        className={`flex items-center px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] md:pt-5 ${
+          collapsed ? 'flex-col gap-2.5 px-2' : 'gap-2.5'
+        }`}
+      >
         <button
           type="button"
           onClick={() => {
             window.location.hash = '#/inbox'
             onNavigate?.()
           }}
-          className="font-sans text-[20px] font-bold leading-none tracking-tight text-ink-900 transition-opacity hover:opacity-80"
+          title={collapsed ? 'Tasquera' : undefined}
+          aria-label={collapsed ? 'Tasquera' : undefined}
+          className="flex items-center gap-2.5 font-sans text-[20px] font-bold leading-none tracking-tight text-ink-900 transition-opacity hover:opacity-80"
         >
-          Tasquera<span className="text-pine-500">.</span>
+          <LogoMark className="size-6" />
+          {!collapsed && (
+            <span>
+              Tasquera<span className="text-pine-500">.</span>
+            </span>
+          )}
         </button>
+        {onToggleCollapsed && (
+          <button
+            type="button"
+            onClick={onToggleCollapsed}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            className={`rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-700 ${
+              collapsed ? '' : 'ml-auto'
+            }`}
+          >
+            <ChevronIcon className={`size-4 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+          </button>
+        )}
       </div>
 
       <div className="px-3 pt-3">
@@ -398,18 +647,26 @@ export default function Sidebar(props: SidebarProps) {
           whileTap={{ scale: 0.97 }}
           transition={{ type: 'spring', stiffness: 500, damping: 30 }}
           onClick={() => onOpenCreateModal()}
-          className="flex w-full items-center gap-2.5 rounded-xl bg-pine-600 px-3.5 py-2.5 text-left text-[14.5px] font-medium text-[#fbf9f5] shadow-xs transition-colors duration-150 hover:bg-pine-700 active:bg-pine-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-100"
+          aria-label="New task"
+          title={collapsed ? 'New task' : undefined}
+          className={`flex items-center rounded-xl bg-pine-600 text-left text-[14.5px] font-medium text-[#fbf9f5] shadow-xs transition-colors duration-150 hover:bg-pine-700 active:bg-pine-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-100 ${
+            collapsed ? 'mx-auto justify-center gap-0 p-2.5' : 'w-full gap-2.5 px-3.5 py-2.5'
+          }`}
         >
           <PlusIcon className="size-[18px] shrink-0 stroke-[2.2]" />
-          <span className="min-w-0 flex-1">New task</span>
-          {!showQuickAdd && (
-            <kbd className="hidden rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white/90 border border-white/10 sm:inline-block shadow-2xs">
-              /
-            </kbd>
+          {!collapsed && (
+            <>
+              <span className="min-w-0 flex-1">New task</span>
+              {!showQuickAdd && (
+                <kbd className="hidden rounded-md bg-black/20 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-white/90 border border-white/10 sm:inline-block shadow-2xs">
+                  /
+                </kbd>
+              )}
+            </>
           )}
         </motion.button>
 
-        {showQuickAdd && (
+        {showQuickAdd && !collapsed && (
           <form onSubmit={handleQuickAdd} className="pt-2">
             <div className="relative flex items-center">
               <PlusIcon className="pointer-events-none absolute left-2.5 size-4 text-ink-400" />
@@ -442,47 +699,125 @@ export default function Sidebar(props: SidebarProps) {
         )}
       </div>
 
-      <nav className="flex flex-1 flex-col justify-between overflow-y-auto px-3 pb-4 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav className="flex flex-1 flex-col justify-between overflow-y-auto px-3 pb-4 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="space-y-0.5">
-          <NavLink href="#/inbox" active={route.name === 'inbox'} icon={<InboxIcon className="size-[18px]" />} label="Inbox" count={countFor({ name: 'inbox' })} onClick={onNavigate} />
-          <NavLink href="#/today" active={route.name === 'today'} icon={<SunIcon className="size-[18px]" />} label="Today" count={countFor({ name: 'today' })} onClick={onNavigate} />
-          <NavLink href="#/upcoming" active={route.name === 'upcoming'} icon={<UpcomingIcon className="size-[18px]" />} label="Upcoming" count={countFor({ name: 'upcoming' })} onClick={onNavigate} />
-          <NavLink href="#/search" active={route.name === 'search'} icon={<SearchIcon className="size-[18px]" />} label="Search" onClick={onNavigate} />
+          <NavLink href="#/inbox" active={route.name === 'inbox'} icon={<InboxIcon className="size-[18px]" />} label="Inbox" count={countFor({ name: 'inbox' })} onClick={onNavigate} collapsed={collapsed} />
+          <NavLink href="#/today" active={route.name === 'today'} icon={<SunIcon className="size-[18px]" />} label="Today" count={countFor({ name: 'today' })} onClick={onNavigate} collapsed={collapsed} />
+          <NavLink href="#/upcoming" active={route.name === 'upcoming'} icon={<UpcomingIcon className="size-[18px]" />} label="Upcoming" count={countFor({ name: 'upcoming' })} onClick={onNavigate} collapsed={collapsed} />
+          <NavLink href="#/search" active={route.name === 'search'} icon={<SearchIcon className="size-[18px]" />} label="Search" onClick={onNavigate} collapsed={collapsed} />
 
-          <SectionLabel label="Boards" onAdd={() => beginAdd('board')} />
-          <AnimatePresence>{addRow('board')}</AnimatePresence>
-          <Reorder.Group
-            axis="y"
-            values={boards}
-            onReorder={(newBoards) => onReorderCollections?.('board', newBoards)}
-            className="space-y-0.5"
-          >
-            {boards.map(collectionRow)}
-          </Reorder.Group>
+          {/* Favorites Section */}
+          {!collapsed && favorites.length > 0 && (
+            <div>
+              <SectionHeader
+                label="Favorites"
+                count={favorites.length}
+                collapsed={!!sectionCollapsed.favorites}
+                onToggle={() => toggleCollapsed('favorites')}
+              />
+              <AnimatePresence initial={false}>
+                {!sectionCollapsed.favorites && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <Reorder.Group
+                      axis="y"
+                      values={favorites}
+                      onReorder={(newFavorites) => onReorderFavorites?.(newFavorites)}
+                      className="space-y-0.5"
+                    >
+                      <AnimatePresence initial={false}>
+                        {favorites.map((c) => collectionRow(c, true))}
+                      </AnimatePresence>
+                    </Reorder.Group>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
-          <SectionLabel label="Lists" onAdd={() => beginAdd('list')} />
-          <AnimatePresence>{addRow('list')}</AnimatePresence>
-          <Reorder.Group
-            axis="y"
-            values={lists}
-            onReorder={(newLists) => onReorderCollections?.('list', newLists)}
-            className="space-y-0.5"
-          >
-            {lists.map(collectionRow)}
-          </Reorder.Group>
+          {/* Boards Section */}
+          {!collapsed && (
+            <div>
+              <SectionHeader
+                label="Boards"
+                count={boards.length}
+                collapsed={!!sectionCollapsed.boards}
+                onToggle={() => toggleCollapsed('boards')}
+                onAdd={() => beginAdd('board')}
+              />
+              <AnimatePresence>{addRow('board')}</AnimatePresence>
+              <AnimatePresence initial={false}>
+                {!sectionCollapsed.boards && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <Reorder.Group
+                      axis="y"
+                      values={boards}
+                      onReorder={(newBoards) => onReorderCollections?.('board', newBoards)}
+                      className="space-y-0.5"
+                    >
+                      {boards.map((c) => collectionRow(c, false))}
+                    </Reorder.Group>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
-          <div className="h-4" />
-          <NavLink href="#/calendar" active={route.name === 'calendar'} icon={<CalendarIcon className="size-[18px]" />} label="Calendar" onClick={onNavigate} />
-          <NavLink href="#/completed" active={route.name === 'completed'} icon={<CheckCircleIcon className="size-[18px]" />} label="Completed" count={countFor({ name: 'completed' })} onClick={onNavigate} />
-          <NavLink href="#/archive" active={route.name === 'archive'} icon={<ArchiveIcon className="size-[18px]" />} label="Archive" onClick={onNavigate} />
+          {/* Lists Section */}
+          {!collapsed && (
+            <div>
+              <SectionHeader
+                label="Lists"
+                count={lists.length}
+                collapsed={!!sectionCollapsed.lists}
+                onToggle={() => toggleCollapsed('lists')}
+                onAdd={() => beginAdd('list')}
+              />
+              <AnimatePresence>{addRow('list')}</AnimatePresence>
+              <AnimatePresence initial={false}>
+                {!sectionCollapsed.lists && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    <Reorder.Group
+                      axis="y"
+                      values={lists}
+                      onReorder={(newLists) => onReorderCollections?.('list', newLists)}
+                      className="space-y-0.5"
+                    >
+                      {lists.map((c) => collectionRow(c, false))}
+                    </Reorder.Group>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          <div className="h-3" />
+          <NavLink href="#/calendar" active={route.name === 'calendar'} icon={<CalendarIcon className="size-[18px]" />} label="Calendar" onClick={onNavigate} collapsed={collapsed} />
+          <NavLink href="#/completed" active={route.name === 'completed'} icon={<CheckCircleIcon className="size-[18px]" />} label="Completed" count={countFor({ name: 'completed' })} onClick={onNavigate} collapsed={collapsed} />
+          <NavLink href="#/archive" active={route.name === 'archive'} icon={<ArchiveIcon className="size-[18px]" />} label="Archive" onClick={onNavigate} collapsed={collapsed} />
         </div>
 
         <div className="pt-4 border-t border-paper-200/40 mt-3 space-y-1 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-1">
-          {canInstallPWA && onInstallPWA && (
+          {canInstallPWA && onInstallPWA && !collapsed && (
             <SidebarInstallButton onClick={onInstallPWA} />
           )}
-          <NavLink href="#/settings" active={route.name === 'settings'} icon={<SettingsIcon className="size-[18px]" />} label="Settings" onClick={onNavigate} />
-          <div className="mt-2.5 px-3 flex items-center justify-between text-[11.5px] text-ink-400">
+          <NavLink href="#/settings" active={route.name === 'settings'} icon={<SettingsIcon className="size-[18px]" />} label="Settings" onClick={onNavigate} collapsed={collapsed} />
+          {!collapsed && (
+            <div className="mt-2.5 px-3 flex items-center justify-between text-[11.5px] text-ink-400">
             <span className="font-mono font-medium text-ink-500">{APP_VERSION}</span>
             <div className="flex items-center gap-2">
               <a
@@ -502,6 +837,7 @@ export default function Sidebar(props: SidebarProps) {
               </a>
             </div>
           </div>
+          )}
         </div>
       </nav>
     </aside>

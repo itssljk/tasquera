@@ -100,6 +100,7 @@ export function normalizeCollection(c: Collection): Collection {
   const now = Date.now()
   return {
     ...c,
+    favorite: !!c.favorite,
     updatedAt: c.updatedAt || c.createdAt || now,
   }
 }

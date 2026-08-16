@@ -1,6 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useState } from 'react'
 import {
   formatDeadline,
   formatDue,
@@ -13,15 +11,96 @@ import {
 } from '../lib/date'
 import { CalendarIcon, ChevronIcon, ClockIcon, CloseIcon } from './icons'
 
-export interface DatePickerProps {
+/* ------------------------------------------------------------------ */
+/* Trigger chip                                                        */
+/* ------------------------------------------------------------------ */
+
+export interface DatePickerTriggerProps {
   value: string // YYYY-MM-DD or YYYY-MM-DDTHH:mm
   onChange: (value: string) => void
   mode?: 'date' | 'datetime'
-  label?: string
   placeholder?: string
-  icon?: React.ReactNode
   accentColor?: 'pine' | 'amber'
-  align?: 'left' | 'right'
+  /** Whether this chip's calendar panel is currently expanded. */
+  open: boolean
+  onToggle: () => void
+}
+
+export function DatePickerTrigger(props: DatePickerTriggerProps) {
+  const {
+    value,
+    onChange,
+    mode = 'date',
+    placeholder = mode === 'datetime' ? 'Set deadline' : 'Set due date',
+    accentColor = mode === 'datetime' ? 'amber' : 'pine',
+    open,
+    onToggle,
+  } = props
+
+  const iconColor = accentColor === 'amber' ? 'text-amber-600' : 'text-pine-600'
+
+  let displayText = placeholder
+  if (value) {
+    displayText = mode === 'datetime' ? formatDeadline(value) : formatDue(value)
+  }
+
+  return (
+    <div
+      className={`group flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 transition-all duration-150 hover:bg-paper-200/80 ${
+        open ? 'bg-paper-200/70' : ''
+      }`}
+    >
+      <span className="flex items-center transition-transform duration-150 group-hover:scale-110">
+        {mode === 'datetime' ? (
+          <ClockIcon className={`size-3.5 shrink-0 ${iconColor}`} />
+        ) : (
+          <CalendarIcon className={`size-3.5 shrink-0 ${iconColor}`} />
+        )}
+      </span>
+
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex items-center gap-1 text-[13px] font-medium transition-colors outline-none cursor-pointer ${
+          value ? 'text-ink-900 font-semibold' : 'text-ink-500 group-hover:text-ink-900 hover:text-ink-900'
+        }`}
+      >
+        <span>{displayText}</span>
+      </button>
+
+      {value && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onChange('')
+          }}
+          aria-label="Clear date"
+          className="ml-0.5 rounded-md p-0.5 text-ink-400 hover:bg-paper-200 hover:text-ink-900 transition-all duration-150 hover:scale-110 active:scale-90 cursor-pointer"
+        >
+          <CloseIcon className="size-3" />
+        </button>
+      )}
+
+      <ChevronIcon
+        className={`size-3 shrink-0 text-ink-400 transition-all duration-200 group-hover:text-ink-700 ${
+          open ? 'rotate-180 text-ink-900' : 'group-hover:translate-y-[1px]'
+        }`}
+      />
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Inline calendar panel                                               */
+/* ------------------------------------------------------------------ */
+
+export interface DatePickerPanelProps {
+  value: string // YYYY-MM-DD or YYYY-MM-DDTHH:mm
+  onChange: (value: string) => void
+  mode?: 'date' | 'datetime'
+  accentColor?: 'pine' | 'amber'
+  onClose: () => void
 }
 
 function get42CalendarDays(year: number, month: number): Date[] {
@@ -159,13 +238,7 @@ function AnalogClockPicker({ timeStr, onChangeTime }: AnalogClockPickerProps) {
                     isSelected ? 'text-paper-50 font-bold' : 'text-ink-700 hover:bg-paper-200/80 hover:text-ink-900'
                   }`}
                 >
-                  {isSelected && (
-                    <motion.div
-                      layoutId="clock-active-pill"
-                      transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-                      className="absolute inset-0 rounded-full bg-amber-600 shadow-2xs z-[-1]"
-                    />
-                  )}
+                  {isSelected && <span className="absolute inset-0 rounded-full bg-amber-600 shadow-2xs z-[-1]" />}
                   <span className="relative z-10">{h}</span>
                 </button>
               )
@@ -191,13 +264,7 @@ function AnalogClockPicker({ timeStr, onChangeTime }: AnalogClockPickerProps) {
                     isSelected ? 'text-paper-50 font-bold' : 'text-ink-700 hover:bg-paper-200/80 hover:text-ink-900'
                   }`}
                 >
-                  {isSelected && (
-                    <motion.div
-                      layoutId="clock-active-pill"
-                      transition={{ type: 'spring', stiffness: 450, damping: 28 }}
-                      className="absolute inset-0 rounded-full bg-amber-600 shadow-2xs z-[-1]"
-                    />
-                  )}
+                  {isSelected && <span className="absolute inset-0 rounded-full bg-amber-600 shadow-2xs z-[-1]" />}
                   <span className="relative z-10">{String(m).padStart(2, '0')}</span>
                 </button>
               )
@@ -207,107 +274,22 @@ function AnalogClockPicker({ timeStr, onChangeTime }: AnalogClockPickerProps) {
   )
 }
 
-export default function DatePicker(props: DatePickerProps) {
+export function DatePickerPanel(props: DatePickerPanelProps) {
   const {
     value,
     onChange,
     mode = 'date',
-    label,
-    placeholder = mode === 'datetime' ? 'Set deadline' : 'Set due date',
-    icon,
     accentColor = mode === 'datetime' ? 'amber' : 'pine',
-    align = 'left',
+    onClose,
   } = props
 
-  const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<'date' | 'time'>('date')
 
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [coords, setCoords] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
-
-  // Current view year & month for calendar navigation
+  // The panel remounts each time it opens, so initializing from the current
+  // value keeps the calendar view in sync with what's selected.
   const initialDateObj = value ? (mode === 'datetime' ? parseISO(value.split('T')[0]) : parseISO(value)) : new Date()
   const [viewYear, setViewYear] = useState(initialDateObj.getFullYear())
   const [viewMonth, setViewMonth] = useState(initialDateObj.getMonth())
-
-  const updatePosition = () => {
-    if (!triggerRef.current) return
-    const rect = triggerRef.current.getBoundingClientRect()
-    const popoverHeight = 320
-    const spaceBelow = window.innerHeight - rect.bottom
-    const spaceAbove = rect.top
-
-    let top: number
-    if (spaceBelow >= popoverHeight || spaceBelow >= spaceAbove) {
-      top = rect.bottom + 6
-    } else {
-      top = rect.top - popoverHeight - 6
-    }
-    top = Math.max(12, Math.min(top, window.innerHeight - popoverHeight - 12))
-
-    let left = align === 'right' ? rect.right - 288 : rect.left
-    left = Math.max(12, Math.min(left, window.innerWidth - 300))
-
-    setCoords({ top, left })
-  }
-
-  // Reset tab & sync calendar view ONLY when popover transitions to open
-  const prevIsOpenRef = useRef(false)
-  useEffect(() => {
-    if (isOpen && !prevIsOpenRef.current) {
-      const activeObj = value ? (mode === 'datetime' ? parseISO(value.split('T')[0]) : parseISO(value)) : new Date()
-      setViewYear(activeObj.getFullYear())
-      setViewMonth(activeObj.getMonth())
-      setActiveTab('date')
-    }
-    prevIsOpenRef.current = isOpen
-  }, [isOpen])
-
-  // Update popover position when opened or tab changes
-  useEffect(() => {
-    if (isOpen) {
-      updatePosition()
-    }
-  }, [isOpen, activeTab])
-
-  // Reposition on resize and scroll
-  useEffect(() => {
-    if (!isOpen) return
-    const handleScrollOrResize = () => updatePosition()
-    window.addEventListener('resize', handleScrollOrResize)
-    window.addEventListener('scroll', handleScrollOrResize, true)
-    return () => {
-      window.removeEventListener('resize', handleScrollOrResize)
-      window.removeEventListener('scroll', handleScrollOrResize, true)
-    }
-  }, [isOpen])
-
-  // Close on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (
-        triggerRef.current &&
-        !triggerRef.current.contains(target) &&
-        popoverRef.current &&
-        !popoverRef.current.contains(target)
-      ) {
-        setIsOpen(false)
-      }
-    }
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleKeyDown)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen])
 
   const parsed = mode === 'datetime' ? parseISODatetime(value) : { date: value, time: '09:00' }
   const selectedDateStr = parsed.date
@@ -320,7 +302,7 @@ export default function DatePicker(props: DatePickerProps) {
   const handleSelectDate = (isoDate: string) => {
     if (mode === 'date') {
       onChange(isoDate)
-      setIsOpen(false)
+      onClose()
     } else {
       const timeToUse = selectedTimeStr || '09:00'
       onChange(`${isoDate}T${timeToUse}`)
@@ -333,10 +315,9 @@ export default function DatePicker(props: DatePickerProps) {
     onChange(`${dateToUse}T${timeStr}`)
   }
 
-  const handleClear = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation()
+  const handleClear = () => {
     onChange('')
-    setIsOpen(false)
+    onClose()
   }
 
   const shiftMonth = (delta: number) => {
@@ -352,193 +333,142 @@ export default function DatePicker(props: DatePickerProps) {
   }
 
   // Accent styling tokens
-  const iconColor = accentColor === 'amber' ? 'text-amber-600' : 'text-pine-600'
   const selectedBg = accentColor === 'amber' ? 'bg-amber-600 text-paper-50 font-semibold' : 'bg-pine-600 text-paper-50 font-semibold'
 
-  // Display text for button trigger
-  let displayText = placeholder
-  if (value) {
-    displayText = mode === 'datetime' ? formatDeadline(value) : formatDue(value)
-  }
-
   return (
-    <div ref={triggerRef} className="relative inline-block text-left">
-      {/* Trigger Pill Button */}
-      <div className="flex items-center gap-1.5 rounded-lg border border-paper-200/80 bg-paper-50 px-2.5 py-1.5 shadow-2xs transition-all hover:border-paper-300">
-        {icon || (mode === 'datetime' ? <ClockIcon className={`size-3.5 shrink-0 ${iconColor}`} /> : <CalendarIcon className={`size-3.5 shrink-0 ${iconColor}`} />)}
-        {label && <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-500">{label}</span>}
+    <div className="w-full rounded-2xl border border-paper-200/80 bg-paper-100 p-3.5 text-ink-900 shadow-[0_32px_80px_-16px_rgba(0,0,0,0.85)]">
+      {/* Segmented Tab Switcher (for datetime mode) */}
+      {mode === 'datetime' && (
+        <div className="mb-3 flex items-center gap-1 rounded-xl bg-paper-200/50 p-1">
+          <button
+            type="button"
+            onClick={() => setActiveTab('date')}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12px] font-semibold transition-all ${
+              activeTab === 'date'
+                ? 'bg-paper-50 text-ink-900 shadow-2xs ring-1 ring-paper-300/30'
+                : 'text-ink-500 hover:text-ink-900'
+            }`}
+          >
+            <CalendarIcon className="size-3.5 text-pine-600" />
+            <span>{selectedDateStr ? formatDue(selectedDateStr) : 'Date'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('time')}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12px] font-semibold transition-all ${
+              activeTab === 'time'
+                ? 'bg-paper-50 text-ink-900 shadow-2xs ring-1 ring-paper-300/30'
+                : 'text-ink-500 hover:text-ink-900'
+            }`}
+          >
+            <ClockIcon className="size-3.5" />
+            <span>{selectedTimeStr ? formatTimeLabel(selectedTimeStr) : 'Time'}</span>
+          </button>
+        </div>
+      )}
 
-        <button
-          type="button"
-          onClick={() => setIsOpen(!isOpen)}
-          className={`flex items-center gap-1 text-[13px] font-medium transition-colors outline-none ${
-            value ? 'text-ink-900 font-semibold' : 'text-ink-500 hover:text-ink-900'
-          }`}
-        >
-          <span>{displayText}</span>
-        </button>
+      {/* DATE TAB VIEW */}
+      {(mode === 'date' || activeTab === 'date') && (
+        <div>
+          {/* Month & Year Navigation Header */}
+          <div className="flex items-center justify-between">
+            <span className="font-sans text-[15px] font-semibold text-ink-900">
+              {monthLabel(viewYear, viewMonth)}
+            </span>
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={goTodayView}
+                className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-ink-500 hover:bg-paper-200 hover:text-ink-900 transition-colors"
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={() => shiftMonth(-1)}
+                aria-label="Previous month"
+                className="rounded-lg p-1 text-ink-500 hover:bg-paper-200 hover:text-ink-900 transition-colors"
+              >
+                <ChevronIcon className="size-3.5 rotate-180" />
+              </button>
+              <button
+                type="button"
+                onClick={() => shiftMonth(1)}
+                aria-label="Next month"
+                className="rounded-lg p-1 text-ink-500 hover:bg-paper-200 hover:text-ink-900 transition-colors"
+              >
+                <ChevronIcon className="size-3.5" />
+              </button>
+            </div>
+          </div>
 
-        {value && (
+          {/* 7-column Calendar Grid (cells stretch to fill the card) */}
+          <div className="mt-2.5 grid grid-cols-7 gap-1 text-center">
+            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
+              <span key={idx} className="text-[10px] font-bold uppercase tracking-wider text-ink-400 py-0.5">
+                {d}
+              </span>
+            ))}
+
+            {days.map((cellDate, idx) => {
+              const cellIso = toISODate(cellDate)
+              const inCurrentMonth = cellDate.getMonth() === viewMonth
+              const isSelected = cellIso === selectedDateStr
+              const isTodayCell = cellIso === today
+
+              return (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => handleSelectDate(cellIso)}
+                  className={`relative flex aspect-square w-full items-center justify-center rounded-lg text-[12.5px] transition-all ${
+                    isSelected
+                      ? selectedBg
+                      : inCurrentMonth
+                      ? 'text-ink-900 hover:bg-paper-200/80 font-medium'
+                      : 'text-ink-400/50 hover:bg-paper-100 hover:text-ink-600'
+                  }`}
+                >
+                  <span>{cellDate.getDate()}</span>
+                  {isTodayCell && !isSelected && (
+                    <span className="absolute bottom-1 size-1 rounded-full bg-pine-600" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TIME TAB VIEW: ANALOG CLOCK PICKER */}
+      {mode === 'datetime' && activeTab === 'time' && (
+        <AnalogClockPicker
+          timeStr={selectedTimeStr}
+          onChangeTime={handleSelectTime}
+        />
+      )}
+
+      {/* Footer Bar */}
+      <div className="mt-3.5 pt-2.5 border-t border-paper-200/60 flex items-center justify-between text-[12px]">
+        {value ? (
           <button
             type="button"
             onClick={handleClear}
-            aria-label="Clear date"
-            className="ml-0.5 rounded-md p-0.5 text-ink-400 hover:bg-paper-200 hover:text-ink-900 transition-colors"
+            className="font-medium text-terra-600 hover:text-terra-700 transition-colors"
           >
-            <CloseIcon className="size-3" />
+            Clear date
           </button>
+        ) : (
+          <span className="text-ink-400">Select date</span>
         )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg bg-paper-200 px-3 py-1 font-semibold text-ink-900 hover:bg-paper-300/80 transition-colors"
+        >
+          Done
+        </button>
       </div>
-
-      {/* Floating Portal Popover Panel */}
-      {isOpen &&
-        createPortal(
-          <AnimatePresence mode="wait">
-            <motion.div
-              ref={popoverRef}
-              style={{ position: 'fixed', top: coords.top, left: coords.left }}
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-              className="z-[100] w-[288px] rounded-2xl bg-paper-100 p-3.5 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.75)] border border-paper-200 text-ink-900"
-            >
-              {/* Segmented Tab Switcher (for datetime mode) */}
-              {mode === 'datetime' && (
-                <div className="flex items-center gap-1 rounded-xl bg-paper-200/50 p-1 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('date')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12px] font-semibold transition-all ${
-                      activeTab === 'date'
-                        ? 'bg-paper-50 text-ink-900 shadow-2xs'
-                        : 'text-ink-500 hover:text-ink-900'
-                    }`}
-                  >
-                    <CalendarIcon className="size-3.5 text-pine-600" />
-                    <span>{selectedDateStr ? formatDue(selectedDateStr) : 'Date'}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('time')}
-                    className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12px] font-semibold transition-all ${
-                      activeTab === 'time'
-                        ? 'bg-amber-600 text-paper-50 shadow-2xs'
-                        : 'text-ink-500 hover:text-ink-900'
-                    }`}
-                  >
-                    <ClockIcon className="size-3.5" />
-                    <span>{selectedTimeStr ? formatTimeLabel(selectedTimeStr) : 'Time'}</span>
-                  </button>
-                </div>
-              )}
-
-              {/* DATE TAB VIEW */}
-              {(mode === 'date' || activeTab === 'date') && (
-                <div>
-                  {/* Month & Year Navigation Header */}
-                  <div className="flex items-center justify-between">
-                    <span className="font-serif text-[15px] italic font-semibold text-ink-900">
-                      {monthLabel(viewYear, viewMonth)}
-                    </span>
-                    <div className="flex items-center gap-0.5">
-                      <button
-                        type="button"
-                        onClick={goTodayView}
-                        className="rounded-md px-1.5 py-0.5 text-[11px] font-medium text-ink-500 hover:bg-paper-200 hover:text-ink-900 transition-colors"
-                      >
-                        Today
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => shiftMonth(-1)}
-                        aria-label="Previous month"
-                        className="rounded-lg p-1 text-ink-500 hover:bg-paper-200 hover:text-ink-900 transition-colors"
-                      >
-                        <ChevronIcon className="size-3.5 rotate-180" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => shiftMonth(1)}
-                        aria-label="Next month"
-                        className="rounded-lg p-1 text-ink-500 hover:bg-paper-200 hover:text-ink-900 transition-colors"
-                      >
-                        <ChevronIcon className="size-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 7-column Calendar Grid */}
-                  <div className="mt-2.5 grid grid-cols-7 gap-1 text-center">
-                    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, idx) => (
-                      <span key={idx} className="text-[10px] font-bold uppercase tracking-wider text-ink-400 py-0.5">
-                        {d}
-                      </span>
-                    ))}
-
-                    {days.map((cellDate, idx) => {
-                      const cellIso = toISODate(cellDate)
-                      const inCurrentMonth = cellDate.getMonth() === viewMonth
-                      const isSelected = cellIso === selectedDateStr
-                      const isTodayCell = cellIso === today
-
-                      return (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => handleSelectDate(cellIso)}
-                          className={`relative flex size-8 items-center justify-center rounded-lg text-[12.5px] transition-all ${
-                            isSelected
-                              ? selectedBg
-                              : inCurrentMonth
-                              ? 'text-ink-900 hover:bg-paper-200/80 font-medium'
-                              : 'text-ink-400/50 hover:bg-paper-100 hover:text-ink-600'
-                          }`}
-                        >
-                          <span>{cellDate.getDate()}</span>
-                          {isTodayCell && !isSelected && (
-                            <span className="absolute bottom-1 size-1 rounded-full bg-pine-600" />
-                          )}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* TIME TAB VIEW: ANALOG CLOCK PICKER */}
-              {mode === 'datetime' && activeTab === 'time' && (
-                <AnalogClockPicker
-                  timeStr={selectedTimeStr}
-                  onChangeTime={handleSelectTime}
-                />
-              )}
-
-              {/* Footer Bar */}
-              <div className="mt-3.5 pt-2.5 border-t border-paper-200/60 flex items-center justify-between text-[12px]">
-                {value ? (
-                  <button
-                    type="button"
-                    onClick={handleClear}
-                    className="font-medium text-terra-600 hover:text-terra-700 transition-colors"
-                  >
-                    Clear date
-                  </button>
-                ) : (
-                  <span className="text-ink-400">Select date</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsOpen(false)}
-                  className="rounded-lg bg-paper-200 px-3 py-1 font-semibold text-ink-900 hover:bg-paper-300/80 transition-colors"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
-          </AnimatePresence>,
-          document.body
-        )}
     </div>
   )
 }

@@ -3,6 +3,10 @@ export type CollectionKind = 'board' | 'list'
 export interface AppSettings {
   showQuickAdd: boolean
   autoArchiveDays?: number
+  /** Master switch for due-date & deadline reminders. */
+  notificationsEnabled?: boolean
+  /** Local time "HH:MM" at which date-only due dates remind (default 09:00). */
+  notificationTime?: string
 }
 
 export interface Collection {
@@ -11,6 +15,7 @@ export interface Collection {
   name: string
   createdAt: number
   updatedAt?: number
+  favorite?: boolean
 }
 
 /** A deletion record so sync/merge can propagate removals across devices. */
