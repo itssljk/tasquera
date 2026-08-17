@@ -20,7 +20,7 @@ a copy is placed in the production build output (`dist/THIRD_PARTY_NOTICES.md`).
 | @capacitor/synapse | 1.x | MIT * | Ionic (2025) |
 | tslib | 2.x | 0BSD | Microsoft Corporation |
 | @capacitor/android (Android APK) | 8.x | MIT | Drifty Co. (2017-present) |
-| AndroidX libraries (Android APK) | — | Apache-2.0 | The Android Open Source Project |
+| AndroidX libraries (Android APK) | - | Apache-2.0 | The Android Open Source Project |
 | Tailwind CSS | 4.x | MIT | Tailwind Labs Inc. (build-time tooling) |
 | Vite | 8.x | MIT | VoidZero Inc. and contributors (build-time tooling) |
 | vite-plugin-pwa | 1.3.x | MIT | Anthony Fu (build-time tooling) |
@@ -33,7 +33,7 @@ license text actually shipped with the package.
 
 ---
 
-## SIL Open Font License v1.1 — Figtree
+## SIL Open Font License v1.1 - Figtree
 
 ```
 Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
@@ -133,7 +133,7 @@ SOFTWARE OR FROM OTHER DEALINGS IN THE FONT SOFTWARE.
 
 ---
 
-## MIT License — React & React DOM
+## MIT License - React & React DOM
 
 ```
 MIT License
@@ -161,7 +161,7 @@ SOFTWARE.
 
 ---
 
-## MIT License — Framer Motion
+## MIT License - Framer Motion
 
 ```
 MIT License
@@ -189,7 +189,7 @@ SOFTWARE.
 
 ---
 
-## MIT License — Capacitor
+## MIT License - Capacitor
 
 `@capacitor/core` and `@capacitor/android` are distributed under the MIT
 License, `Copyright (c) 2017-present Drifty Co.` `@capacitor/filesystem` and
@@ -225,7 +225,7 @@ SOFTWARE.
 
 ---
 
-## MIT License — Tailwind CSS & Vite
+## MIT License - Tailwind CSS & Vite
 
 Tailwind CSS and Vite are distributed under the MIT License
 (`Copyright (c) Tailwind Labs Inc.` and `Copyright (c) VoidZero Inc. and
@@ -234,7 +234,7 @@ text is available in the respective packages in `node_modules/`.
 
 ---
 
-## MIT License — vite-plugin-pwa & Workbox
+## MIT License - vite-plugin-pwa & Workbox
 
 `vite-plugin-pwa` (Copyright (c) 2020-PRESENT Anthony Fu) and Workbox
 (Copyright 2018 Google LLC) are distributed under the MIT License. Workbox
@@ -269,7 +269,7 @@ SOFTWARE.
 
 ---
 
-## ISC License — canvas-confetti
+## ISC License - canvas-confetti
 
 ```
 ISC License
@@ -291,7 +291,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## 0BSD License — tslib
+## 0BSD License - tslib
 
 `tslib` (Copyright Microsoft Corporation) is distributed under the
 0BSD (Zero-Clause BSD) License, which imposes no conditions beyond the
@@ -314,7 +314,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ---
 
-## Apache License 2.0 — TypeScript & AndroidX
+## Apache License 2.0 - TypeScript & AndroidX
 
 TypeScript is a development-only dependency (never shipped in the built app)
 and is licensed under the Apache License, Version 2.0, Copyright Microsoft

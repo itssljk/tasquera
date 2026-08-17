@@ -74,7 +74,7 @@ export function useAppUpdater(): AppUpdater {
         return
       }
       if (opts?.quiet && (await getDismissedCode()) === m.versionCode) {
-        // Already dismissed this version — stay quiet on auto checks.
+        // Already dismissed this version: stay quiet on auto checks.
         setManifest(null)
         setStatus('upToDate')
         return
@@ -135,7 +135,7 @@ export function useAppUpdater(): AppUpdater {
     if (!isNativePlatform()) return
     const path = downloadedPathRef.current
     if (!path) {
-      // Shouldn't happen — the UI only offers Install once downloaded.
+      // Shouldn't happen: the UI only offers Install once downloaded.
       await download()
       return
     }
@@ -178,7 +178,7 @@ export function useAppUpdater(): AppUpdater {
           setStatus('ready')
         }
       } catch {
-        // Leave the state alone — the user can retry manually.
+        // Leave the state alone: the user can retry manually.
       }
     }
     document.addEventListener('visibilitychange', refresh)

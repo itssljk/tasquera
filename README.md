@@ -12,7 +12,7 @@ A calm, focused task manager built to help you organize your work without the no
 - **Search**: Full-text search across task titles, notes, subtasks, links, and lists (`Ctrl/Cmd+K`).
 - **Keyboard shortcuts**: Quick-add with `/`, save with `Enter`, undo with `Ctrl/Cmd+Z`, and drag to reorder.
 - **Backup and restore**: Export or import your data as JSON anytime in Settings.
-- **Local folder sync**: Bind a Syncthing folder and Tasquera writes a `tasquera-sync.json` file it keeps in sync across devices — including deletions.
+- **Local folder sync**: Bind a Syncthing folder and Tasquera writes a `tasquera-sync.json` file it keeps in sync across devices, including deletions.
 
 ## Getting Started
 
@@ -68,7 +68,7 @@ resolves one.
 ### Release signing
 
 Release builds are signed with the keystore at `android/tasquera-release.keystore`
-(credentials in `android/keystore.properties`). Both files are gitignored — never
+(credentials in `android/keystore.properties`). Both files are gitignored; never
 commit them. To create the keystore on a fresh machine:
 
 ```bash
@@ -94,14 +94,14 @@ they are missing.
 The Android app checks GitHub Releases for a newer version and can download and install it in place, so sideloaded installs stay current without the Play Store.
 
 - On launch (at most once a day) and from Settings → Updates, the app fetches `update.json` from the latest release, compares `versionCode`, and prompts when a newer build exists.
-- The APK is downloaded with its SHA-256 verified against the manifest, then handed to the system installer — Android always asks you to confirm the final install.
+- The APK is downloaded with its SHA-256 verified against the manifest, then handed to the system installer. Android always asks you to confirm the final install.
 - Tapping **Later** records that version so it isn't re-prompted automatically; you can still install it from Settings → Updates.
 
 To ship an update:
 
-1. Bump `version` in `package.json` (e.g. `0.8.0`). `build:apk` derives the Android `versionName` and `versionCode` from it.
+1. Bump `version` in `package.json` (e.g. `1.0.0`). `build:apk` derives the Android `versionName` and `versionCode` from it.
 2. Run `npm run build:apk`. It emits `android/app/build/outputs/apk/release/app-release.apk` **and** `update.json`.
-3. Create a GitHub Release tagged `v0.8.0` and attach **both** files, keeping the exact filenames `app-release.apk` and `update.json`.
+3. Create a GitHub Release tagged `v1.0.0` and attach **both** files, keeping the exact filenames `app-release.apk` and `update.json`.
 4. Installed apps pick it up on their next update check.
 
 Notes:
@@ -119,7 +119,7 @@ Notes:
 
 ## Data & Privacy
 
-All data is stored locally on your device — in your browser's `localStorage` (key `tasquera.state.v2`) on the web, or in the app's private storage on Android. Clearing browser storage or uninstalling the app removes your data, so export a backup from Settings first. Image attachments are stored in IndexedDB (referenced by id from your tasks) so they don't count against the localStorage quota, and they're included in backups and in the sync folder's JSON file. No accounts, no servers, no tracking.
+All data is stored locally on your device: in your browser's `localStorage` (key `tasquera.state.v2`) on the web, or in the app's private storage on Android. Clearing browser storage or uninstalling the app removes your data, so export a backup from Settings first. Image attachments are stored in IndexedDB (referenced by id from your tasks) so they don't count against the localStorage quota, and they're included in backups and in the sync folder's JSON file. No accounts, no servers, no tracking.
 
 Note: because image attachments are embedded in the sync file as base64, a photo-heavy task list makes `tasquera-sync.json` large (multi-MB), and Syncthing re-syncs the whole file on every change. Tasquera shows a warning in Settings when the sync file exceeds ~2 MB.
 

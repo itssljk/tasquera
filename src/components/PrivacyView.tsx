@@ -28,7 +28,7 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
           ← Back to Settings
         </button>
         <span className="rounded-md bg-paper-200 px-2 py-0.5 font-mono text-[11px] font-medium text-pine-500">
-          {APP_VERSION}
+          v{APP_VERSION}
         </span>
       </div>
 
@@ -39,7 +39,7 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
             Privacy Policy
           </h1>
           <p className="mt-1.5 text-[12.5px] text-ink-500">
-            {APP_NAME} {APP_VERSION} · Effective {LAST_LEGAL_UPDATE}
+            {APP_NAME} v{APP_VERSION} · Effective {LAST_LEGAL_UPDATE}
           </p>
         </div>
       </div>
@@ -51,14 +51,14 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
             <span>100% Local-First Privacy Guarantee</span>
           </div>
           <p>
-            {APP_NAME} is built from the ground up to respect your privacy. All your tasks, dates, boards, and lists stay strictly on your device — in your browser&apos;s local storage on the web, or in the app&apos;s private storage on the Android app.
+            {APP_NAME} is built from the ground up to respect your privacy. All your tasks, dates, boards, and lists stay strictly on your device: in your browser&apos;s local storage on the web, or in the app&apos;s private storage on the Android app.
           </p>
         </section>
 
         <section className="space-y-3">
           <h2 className="text-[16px] font-semibold text-ink-900">1. Data We Store</h2>
           <p>
-            When you create tasks, set deadlines, organize boards, or adjust preferences, {APP_NAME} stores this information locally on your device — in your web browser&apos;s local storage on the web, or in the app&apos;s private storage on the Android app. Image attachments are stored in your browser&apos;s IndexedDB (or the app&apos;s equivalent local storage) so they don&apos;t count against the main storage quota.
+            When you create tasks, set deadlines, organize boards, or adjust preferences, {APP_NAME} stores this information locally on your device: in your web browser&apos;s local storage on the web, or in the app&apos;s private storage on the Android app. Image attachments are stored in your browser&apos;s IndexedDB (or the app&apos;s equivalent local storage) so they don&apos;t count against the main storage quota.
           </p>
           <ul className="list-disc pl-5 space-y-1 text-ink-600">
             <li>Task names, descriptions, priorities, and subtasks</li>
@@ -93,12 +93,12 @@ export default function PrivacyView({ onBack }: { onBack?: () => void }) {
             If you enable <strong>folder sync</strong> in Settings, {APP_NAME} writes your tasks to a folder you choose on your device (on Android, <code>Documents/Tsqsync/</code>) as a plain JSON file, so you can sync it with tools like Syncthing. This feature is entirely optional and off by default:
           </p>
           <ul className="list-disc pl-5 space-y-1 text-ink-600">
-            <li>You pick the folder — {APP_NAME} never scans or accesses your other files.</li>
+            <li>You pick the folder. {APP_NAME} never scans or accesses your other files.</li>
             <li>Disconnecting sync stops all reads and writes to that folder.</li>
             <li>The file contains your task data, so treat it like any private file you share.</li>
           </ul>
           <p>
-            On Android 11 and newer, {APP_NAME} requests the system’s “All files access” permission — it needs it to read and write the sync folder you choose (<code>Documents/Tsqsync/</code>). It never scans, modifies, or uploads any other files, and it never transmits this folder anywhere.
+            On Android 11 and newer, {APP_NAME} requests the system’s “All files access” permission: it needs it to read and write the sync folder you choose (<code>Documents/Tsqsync/</code>). It never scans, modifies, or uploads any other files, and it never transmits this folder anywhere.
           </p>
         </section>
 

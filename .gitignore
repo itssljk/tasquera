@@ -7,7 +7,7 @@ preview.html
 # Build artifacts
 *.tsbuildinfo
 
-# Local tooling data (Freebuff desktop database — never commit)
+# Local tooling data (Freebuff desktop database, never commit)
 .freebuff/
 
 # OS junk
@@ -40,7 +40,7 @@ android/build/
 android/captures/
 android/.idea/
 
-# ── Release signing — NEVER commit these ─────────────────────────────
+# ── Release signing - NEVER commit these ─────────────────────────────
 # The release keystore is the only thing that cannot be regenerated:
 # losing it makes every existing install un-updatable, and committing it
 # would let anyone sign updates for the app. Back it up offline.

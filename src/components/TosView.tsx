@@ -28,7 +28,7 @@ export default function TosView({ onBack }: { onBack?: () => void }) {
           ← Back to Settings
         </button>
         <span className="rounded-md bg-paper-200 px-2 py-0.5 font-mono text-[11px] font-medium text-pine-500">
-          {APP_VERSION}
+          v{APP_VERSION}
         </span>
       </div>
 
@@ -39,7 +39,7 @@ export default function TosView({ onBack }: { onBack?: () => void }) {
             Terms of Service
           </h1>
           <p className="mt-1.5 text-[12.5px] text-ink-500">
-            {APP_NAME} {APP_VERSION} · Effective {LAST_LEGAL_UPDATE}
+            {APP_NAME} v{APP_VERSION} · Effective {LAST_LEGAL_UPDATE}
           </p>
         </div>
       </div>

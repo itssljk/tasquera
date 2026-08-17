@@ -101,7 +101,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
     } catch {
-      // storage unavailable — keep state in memory
+      // storage unavailable: keep state in memory
     }
   }, [state])
 

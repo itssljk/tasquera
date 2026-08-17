@@ -1,6 +1,6 @@
 apply plugin: 'com.android.application'
 
-// Release signing. Reads android/keystore.properties (gitignored — never
+// Release signing. Reads android/keystore.properties (gitignored: never
 // commit it). The keystore itself lives at android/tasquera-release.keystore
 // (also gitignored). Debug builds are unaffected and keep using the debug key.
 def keystorePropertiesFile = rootProject.file('keystore.properties')
@@ -9,12 +9,12 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 }
 
-// App version follows the web app's package.json version (e.g. 0.8.0),
-// passed in by build-apk.ps1 as -PappVersionName. Falls back to 0.8.0.
-// versionCode is derived: major*10000 + minor*100 + patch (0.6.0 -> 600).
+// App version follows the web app's package.json version (e.g. 1.0.0),
+// passed in by build-apk.ps1 as -PappVersionName. Falls back to 1.0.0.
+// versionCode is derived: major*10000 + minor*100 + patch (1.0.0 -> 10000).
 def appVersionName = project.hasProperty('appVersionName') && project.property('appVersionName')
         ? project.property('appVersionName').toString()
-        : '0.8.0'
+        : '1.0.0'
 def versionMatch = (appVersionName =~ /(\d+)\.(\d+)(?:\.(\d+))?/)
 def appVersionCode = 1
 if (versionMatch.find()) {

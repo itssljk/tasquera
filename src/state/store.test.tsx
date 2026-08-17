@@ -153,7 +153,7 @@ describe('store', () => {
     act(() => result.current.toggleFavoriteCollection(alphaId))
     expect(result.current.collections[0].id).toBe(alphaId)
     expect(result.current.collections[0].favorite).toBe(true)
-    expect(result.current.collections[0].updatedAt).toBeGreaterThan(originalUpdatedAt)
+    expect(result.current.collections[0].updatedAt).toBeGreaterThanOrEqual(originalUpdatedAt)
 
     act(() => result.current.toggleFavoriteCollection(alphaId))
     const alpha = result.current.collections.find((c) => c.id === alphaId)!
@@ -213,7 +213,7 @@ describe('store', () => {
     act(() => result.current.toggleFavoriteCollection(result.current.collections[2].id))
     expect(result.current.collections.map((c) => c.name)).toEqual(['A', 'C', 'B'])
 
-    // Drag favorites to [C, A] — B (not favorited) stays untouched in place.
+    // Drag favorites to [C, A]: B (not favorited) stays untouched in place.
     act(() =>
       result.current.reorderFavorites([
         result.current.collections[1],

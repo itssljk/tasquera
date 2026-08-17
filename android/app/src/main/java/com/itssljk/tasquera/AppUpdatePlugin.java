@@ -31,7 +31,7 @@ import java.security.MessageDigest;
  * Releases, compares its {@code versionCode} against the installed build, and
  * drives this plugin to download the new APK (verifying its SHA-256), then
  * hand off to the system package installer. Android still requires the user to
- * confirm the install — fully silent self-updates are not allowed.
+ * confirm the install; fully silent self-updates are not allowed.
  */
 @CapacitorPlugin(name = "AppUpdate")
 public class AppUpdatePlugin extends Plugin {

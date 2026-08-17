@@ -262,29 +262,29 @@ export default function TaskRow(props: TaskRowProps) {
             )}
           </motion.p>
 
-          {/* Metadata Indicators Badges */}
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11.5px] font-medium">
-            {/* Priority pill */}
+          {/* Metadata Indicators */}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] font-medium text-ink-500">
+            {/* Priority */}
             {task.priority && task.priority !== 'medium' && (
               <span
-                className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider ${
+                className={`inline-flex items-center gap-1 font-semibold ${
                   task.priority === 'urgent'
-                    ? 'bg-terra-600/20 text-terra-600'
+                    ? 'text-terra-600'
                     : task.priority === 'high'
-                      ? 'bg-amber-600/15 text-amber-600'
-                      : 'bg-slateblue-600/15 text-slateblue-600'
+                      ? 'text-amber-600'
+                      : 'text-slateblue-600'
                 }`}
               >
                 <FlagIcon className="size-3" />
-                {task.priority}
+                <span className="capitalize">{task.priority}</span>
               </span>
             )}
 
-            {/* Recurrence badge */}
+            {/* Recurrence */}
             {task.recurrence && !done && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/10 px-2 py-0.5 text-[11px] font-medium text-pine-600">
+              <span className="inline-flex items-center gap-1 text-pine-600 font-medium">
                 <RepeatIcon className="size-3" />
-                {recurrenceLabel(task.recurrence)}
+                <span>{recurrenceLabel(task.recurrence)}</span>
               </span>
             )}
 
@@ -292,7 +292,7 @@ export default function TaskRow(props: TaskRowProps) {
             {task.dueDate && !done && (
               <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
                 <CalendarIcon className="size-3 text-pine-600" />
-                {formatDue(task.dueDate)}
+                <span>{formatDue(task.dueDate)}</span>
               </span>
             )}
 
@@ -300,11 +300,11 @@ export default function TaskRow(props: TaskRowProps) {
             {task.deadline && !done && (
               <span className={`inline-flex items-center gap-1 font-medium ${isDeadlineOverdue(task.deadline) ? 'text-terra-600 font-semibold' : 'text-amber-600'}`}>
                 <ClockIcon className="size-3" />
-                {formatDeadline(task.deadline)}
+                <span>{formatDeadline(task.deadline)}</span>
               </span>
             )}
 
-            {/* Subtasks progress badge */}
+            {/* Subtasks progress indicator */}
             {subtasksCount > 0 && (
               <button
                 type="button"
@@ -312,14 +312,16 @@ export default function TaskRow(props: TaskRowProps) {
                   e.stopPropagation()
                   setExpanded(!expanded)
                 }}
-                className="inline-flex items-center gap-1 text-ink-600 bg-paper-200/80 hover:bg-paper-200 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+                title={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
+                aria-label={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
+                className="inline-flex items-center gap-1 text-ink-500 hover:text-ink-800 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
               >
                 <SubtaskIcon className="size-3 text-pine-600" />
-                <span>{subtasksDoneCount}/{subtasksCount}</span>
+                <span className="tabular-nums">{subtasksDoneCount}/{subtasksCount}</span>
               </button>
             )}
 
-            {/* Description note icon badge */}
+            {/* Description / Notes icon */}
             {task.description && (
               <button
                 type="button"
@@ -327,14 +329,15 @@ export default function TaskRow(props: TaskRowProps) {
                   e.stopPropagation()
                   setExpanded(!expanded)
                 }}
-                className="inline-flex items-center gap-1 text-ink-600 bg-paper-200/80 hover:bg-paper-200 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+                title="Notes"
+                aria-label="View notes"
+                className="inline-flex items-center text-ink-400 hover:text-ink-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
               >
-                <NotesIcon className="size-3 text-ink-500" />
-                <span>Note</span>
+                <NotesIcon className="size-3" />
               </button>
             )}
 
-            {/* Links icon badge */}
+            {/* Links icon */}
             {linksCount > 0 && (
               <button
                 type="button"
@@ -342,14 +345,16 @@ export default function TaskRow(props: TaskRowProps) {
                   e.stopPropagation()
                   setExpanded(!expanded)
                 }}
-                className="inline-flex items-center gap-1 text-pine-600 bg-pine-500/10 hover:bg-pine-500/20 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+                title={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
+                aria-label={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
+                className="inline-flex items-center gap-1 text-ink-400 hover:text-pine-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
               >
                 <LinkIcon className="size-3" />
-                <span>{linksCount} link{linksCount > 1 ? 's' : ''}</span>
+                <span className="tabular-nums">{linksCount}</span>
               </button>
             )}
 
-            {/* Images icon badge */}
+            {/* Photos icon */}
             {imagesCount > 0 && (
               <button
                 type="button"
@@ -357,27 +362,12 @@ export default function TaskRow(props: TaskRowProps) {
                   e.stopPropagation()
                   setExpanded(!expanded)
                 }}
-                className="inline-flex items-center gap-1 text-slateblue-600 bg-slateblue-600/10 hover:bg-slateblue-600/20 px-2 py-0.5 rounded-md text-[11px] font-medium transition-colors"
+                title={`${imagesCount} photo${imagesCount > 1 ? 's' : ''}`}
+                aria-label={`${imagesCount} photo${imagesCount > 1 ? 's' : ''}`}
+                className="inline-flex items-center gap-1 text-ink-400 hover:text-slateblue-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
               >
                 <ImageIcon className="size-3" />
-                <span>{imagesCount} photo{imagesCount > 1 ? 's' : ''}</span>
-              </button>
-            )}
-
-            {/* Details toggle badge - only show if there are details to expand */}
-            {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setExpanded(!expanded)
-                }}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
-                  expanded ? 'bg-pine-500/15 text-pine-600' : 'bg-paper-200/80 text-ink-600 hover:bg-paper-200'
-                }`}
-              >
-                <ChevronIcon className={`size-3 transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
-                <span>{expanded ? 'Hide details' : 'Details'}</span>
+                <span className="tabular-nums">{imagesCount}</span>
               </button>
             )}
 
@@ -431,16 +421,19 @@ export default function TaskRow(props: TaskRowProps) {
                 >
             {onEditDetails && (
               <>
-                <button
+                <motion.button
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ duration: 0.12 }}
                   onClick={() => {
                     onEditDetails(task)
                     close()
                   }}
-                  className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 font-medium text-pine-600 hover:bg-pine-500/10 transition-colors"
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-1.5 font-medium text-pine-600 hover:bg-pine-500/10 transition-colors"
                 >
                   <PencilIcon className="size-3.5" />
                   <span>Edit details...</span>
-                </button>
+                </motion.button>
                 <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
               </>
             )}
@@ -448,48 +441,57 @@ export default function TaskRow(props: TaskRowProps) {
             {/* Status Switcher */}
             <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Status</p>
             <div className="grid grid-cols-3 gap-1 px-1 pb-2">
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.04, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.12 }}
                 onClick={() => {
                   onUpdate(task.id, { status: 'todo', done: false, completedAt: null })
                   close()
                 }}
-                className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
+                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11px] font-medium whitespace-nowrap text-center transition-all ${
                   !task.done && (task.status === 'todo' || !task.status)
                     ? 'bg-paper-200 text-ink-900 font-semibold shadow-2xs'
-                    : 'text-ink-600 hover:bg-paper-100'
+                    : 'text-ink-600 hover:bg-paper-100 hover:text-ink-900'
                 }`}
               >
                 To Do
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.04, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.12 }}
                 onClick={() => {
                   onUpdate(task.id, { status: 'in_progress', done: false, completedAt: null })
                   close()
                 }}
-                className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
+                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11px] font-medium whitespace-nowrap text-center transition-all ${
                   !task.done && task.status === 'in_progress'
                     ? 'bg-amber-600/20 text-amber-700 font-semibold shadow-2xs'
-                    : 'text-ink-600 hover:bg-paper-100'
+                    : 'text-ink-600 hover:bg-amber-500/10 hover:text-amber-600'
                 }`}
               >
                 In Progress
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.04, y: -1 }}
+                whileTap={{ scale: 0.95 }}
+                transition={{ duration: 0.12 }}
                 onClick={() => {
                   onUpdate(task.id, { status: 'done', done: true, completedAt: task.completedAt ?? Date.now() })
                   close()
                 }}
-                className={`rounded-lg px-2 py-1 text-[11px] font-medium transition-colors ${
+                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11px] font-medium whitespace-nowrap text-center transition-all ${
                   task.done || task.status === 'done'
                     ? 'bg-pine-500/20 text-pine-400 font-semibold shadow-2xs'
-                    : 'text-ink-600 hover:bg-paper-100'
+                    : 'text-ink-600 hover:bg-pine-500/15 hover:text-pine-400'
                 }`}
               >
                 Done
-              </button>
+              </motion.button>
             </div>
 
             <div className="mx-2 my-1 h-px bg-paper-200/60" />
@@ -498,14 +500,17 @@ export default function TaskRow(props: TaskRowProps) {
             <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Priority</p>
             <div className="grid grid-cols-4 gap-1 px-1 pb-2">
               {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
-                <button
+                <motion.button
                   key={p}
                   type="button"
+                  whileHover={{ scale: 1.06, y: -1 }}
+                  whileTap={{ scale: 0.94 }}
+                  transition={{ duration: 0.12 }}
                   onClick={() => {
                     onUpdate(task.id, { priority: p })
                     close()
                   }}
-                  className={`capitalize rounded-lg px-1.5 py-1 text-[10.5px] font-medium transition-colors ${
+                  className={`cursor-pointer capitalize rounded-lg px-1.5 py-1 text-[10.5px] font-medium transition-colors ${
                     (task.priority ?? 'medium') === p
                       ? p === 'urgent'
                         ? 'bg-terra-600/20 text-terra-600 font-semibold'
@@ -518,7 +523,7 @@ export default function TaskRow(props: TaskRowProps) {
                   }`}
                 >
                   {p}
-                </button>
+                </motion.button>
               ))}
             </div>
 
@@ -526,8 +531,11 @@ export default function TaskRow(props: TaskRowProps) {
 
             {/* Move To */}
             <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Move To</p>
-            <button
-              className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] ${
+            <motion.button
+              whileHover={{ x: 3 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
                 task.listId === null ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
               }`}
               onClick={() => {
@@ -535,14 +543,17 @@ export default function TaskRow(props: TaskRowProps) {
                 close()
               }}
             >
-              <span className={`size-1.5 shrink-0 rounded-full ${task.listId === null ? 'bg-pine-500' : 'bg-transparent'}`} />
+              <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === null ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
               <span className="min-w-0 flex-1 truncate">Inbox</span>
-            </button>
+            </motion.button>
 
             {boards.map((b) => (
-              <button
+              <motion.button
                 key={b.id}
-                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] ${
+                whileHover={{ x: 3 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.12 }}
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
                   task.listId === b.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
                 }`}
                 onClick={() => {
@@ -550,15 +561,18 @@ export default function TaskRow(props: TaskRowProps) {
                   close()
                 }}
               >
-                <span className={`size-1.5 shrink-0 rounded-full ${task.listId === b.id ? 'bg-pine-500' : 'bg-transparent'}`} />
+                <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === b.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
                 <span className="min-w-0 flex-1 truncate">{b.name}</span>
-              </button>
+              </motion.button>
             ))}
 
             {lists.map((l) => (
-              <button
+              <motion.button
                 key={l.id}
-                className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] ${
+                whileHover={{ x: 3 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.12 }}
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
                   task.listId === l.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
                 }`}
                 onClick={() => {
@@ -566,9 +580,9 @@ export default function TaskRow(props: TaskRowProps) {
                   close()
                 }}
               >
-                <span className={`size-1.5 shrink-0 rounded-full ${task.listId === l.id ? 'bg-pine-500' : 'bg-transparent'}`} />
+                <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === l.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
                 <span className="min-w-0 flex-1 truncate">{l.name}</span>
-              </button>
+              </motion.button>
             ))}
 
             <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
@@ -589,8 +603,11 @@ export default function TaskRow(props: TaskRowProps) {
 
             {/* Archive / Delete */}
             {task.archived ? (
-              <button
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-ink-700 transition-colors hover:bg-paper-100"
+              <motion.button
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.12 }}
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-ink-700 transition-colors hover:bg-paper-100"
                 onClick={() => {
                   onRestore?.(task.id)
                   close()
@@ -598,10 +615,13 @@ export default function TaskRow(props: TaskRowProps) {
               >
                 <ArchiveIcon className="size-3.5 text-ink-400" />
                 <span>Restore from archive</span>
-              </button>
+              </motion.button>
             ) : (
-              <button
-                className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-ink-700 transition-colors hover:bg-paper-100"
+              <motion.button
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.98 }}
+                transition={{ duration: 0.12 }}
+                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-ink-700 transition-colors hover:bg-paper-100"
                 onClick={() => {
                   onArchive(task.id)
                   close()
@@ -609,11 +629,14 @@ export default function TaskRow(props: TaskRowProps) {
               >
                 <ArchiveIcon className="size-3.5 text-ink-400" />
                 <span>Archive</span>
-              </button>
+              </motion.button>
             )}
 
-            <button
-              className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-terra-600 transition-colors hover:bg-terra-50"
+            <motion.button
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-terra-600 transition-colors hover:bg-terra-50"
               onClick={() => {
                 onDelete(task.id)
                 close()
@@ -621,7 +644,7 @@ export default function TaskRow(props: TaskRowProps) {
             >
               <TrashIcon className="size-3.5" />
               <span>Delete</span>
-            </button>
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>

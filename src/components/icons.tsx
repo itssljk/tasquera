@@ -69,6 +69,16 @@ export function ChevronIcon(props: IconProps) {
   )
 }
 
+export function SidebarIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <rect x="3" y="3.5" width="14" height="13" rx="2" />
+      <path d="M7.5 3.5v13" />
+    </svg>
+  )
+}
+
+
 export function EllipsisIcon(props: IconProps) {
   return (
     <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" {...props}>

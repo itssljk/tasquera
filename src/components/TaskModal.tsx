@@ -9,6 +9,7 @@ import RecurrencePicker from './RecurrencePicker'
 import { useIsDesktop } from '../lib/useMediaQuery'
 import {
   CheckCircleIcon,
+  CheckIcon,
   CloseIcon,
   ExternalLinkIcon,
   FlagIcon,
@@ -461,18 +462,25 @@ export default function TaskModal(props: TaskModalProps) {
             </span>
 
             {subtasks.length > 0 && (
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {subtasks.map((s) => (
                   <div
                     key={s.id}
-                    className="group flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition-colors duration-150 hover:bg-paper-200/50"
+                    className="group flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors duration-150 hover:bg-paper-200/50"
                   >
-                    <input
-                      type="checkbox"
-                      checked={s.done}
-                      onChange={() => toggleSubtask(s.id)}
-                      className="size-4 shrink-0 cursor-pointer rounded accent-pine-600"
-                    />
+                    <motion.button
+                      type="button"
+                      whileTap={{ scale: 0.88 }}
+                      onClick={() => toggleSubtask(s.id)}
+                      aria-label={s.done ? `Mark “${s.title}” as incomplete` : `Mark “${s.title}” as complete`}
+                      className={`flex size-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-150 cursor-pointer ${
+                        s.done
+                          ? 'border-pine-600 bg-pine-600 text-paper-50 shadow-xs'
+                          : 'border-ink-400/50 bg-paper-100/40 hover:border-pine-500 hover:bg-pine-500/10'
+                      }`}
+                    >
+                      {s.done && <CheckIcon className="size-2.5 stroke-[2.5]" />}
+                    </motion.button>
                     <input
                       type="text"
                       value={s.title}
@@ -480,15 +488,15 @@ export default function TaskModal(props: TaskModalProps) {
                         const val = e.target.value
                         setSubtasks((prev) => prev.map((sub) => (sub.id === s.id ? { ...sub, title: val } : sub)))
                       }}
-                      className={`flex-1 bg-transparent text-[14px] outline-none ${
-                        s.done ? 'line-through text-ink-500' : 'text-ink-900'
+                      className={`flex-1 bg-transparent text-[14px] outline-none transition-colors duration-150 ${
+                        s.done ? 'line-through text-ink-400' : 'text-ink-900'
                       }`}
                     />
                     <button
                       type="button"
                       onClick={() => removeSubtask(s.id)}
                       aria-label={`Remove subtask “${s.title}”`}
-                      className="rounded p-1 text-ink-400 transition-all duration-150 hover:text-terra-600 md:opacity-0 md:group-hover:opacity-100"
+                      className="rounded-md p-1 text-ink-400 transition-all duration-150 hover:text-terra-600 hover:bg-paper-200/60 opacity-60 md:opacity-0 md:group-hover:opacity-100 cursor-pointer"
                     >
                       <TrashIcon className="size-3.5" />
                     </button>

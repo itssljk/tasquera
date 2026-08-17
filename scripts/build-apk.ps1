@@ -45,7 +45,7 @@ if (-not $env:ANDROID_HOME) {
 }
 $env:Path = "$env:JAVA_HOME\bin;$env:ANDROID_HOME\platform-tools;$env:Path"
 
-# Keep the Android version in sync with package.json (e.g. 0.7.0).
+# Keep the Android version in sync with package.json (e.g. 1.0.0).
 $appVersion = (Get-Content (Join-Path $projectRoot "package.json") | ConvertFrom-Json).version
 Write-Host "Version: v$appVersion" -ForegroundColor DarkGray
 

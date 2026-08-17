@@ -10,7 +10,7 @@ const html = readFileSync(join(dist, 'index.html'), 'utf8')
 const assetNames = readdirSync(assetsDir)
 const cssName = assetNames.find((a) => a.endsWith('.css'))
 const jsName = assetNames.find((a) => a.endsWith('.js'))
-if (!cssName || !jsName) throw new Error('dist assets not found — run npm run build first')
+if (!cssName || !jsName) throw new Error('dist assets not found: run npm run build first')
 
 let css = readFileSync(join(assetsDir, cssName), 'utf8')
 css = css.replace(/url\(([^)]+)\)/g, (match, p) => {

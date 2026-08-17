@@ -53,7 +53,7 @@ async function resolveUpdateUrl(): Promise<string> {
     const res = await AppUpdate.getUpdateUrl()
     if (res && typeof res.url === 'string' && res.url) return res.url
   } catch {
-    // Plugin unavailable — fall back to the default.
+    // Plugin unavailable: fall back to the default.
   }
   return DEFAULT_UPDATE_URL
 }
@@ -154,7 +154,7 @@ export async function downloadUpdate(
       try {
         await handle.remove()
       } catch {
-        // Listener already detached — nothing to clean up.
+        // Listener already detached: nothing to clean up.
       }
     }
   }
@@ -186,7 +186,7 @@ export async function markChecked(now: number = Date.now()): Promise<void> {
   try {
     await idbKeyval.set(LAST_CHECK_KEY, now)
   } catch {
-    // Best effort — failing only means we check again sooner.
+    // Best effort: failing only means we check again sooner.
   }
 }
 

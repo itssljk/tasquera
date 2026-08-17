@@ -72,7 +72,7 @@ export function reminderBody(task: Task): string {
   const due = task.dueDate
   if (!due) return 'Reminder'
   if (due === todayISO()) return 'Due today'
-  if (isOverdue(due)) return `Overdue — was due ${formatDue(due)}`
+  if (isOverdue(due)) return `Overdue: was due ${formatDue(due)}`
   return `Due ${formatDue(due)}`
 }
 
@@ -117,7 +117,7 @@ function storeDelivered(keys: Set<string>) {
     const all = [...keys]
     localStorage.setItem(DELIVERED_KEY, JSON.stringify(all.slice(-DELIVERED_CAP)))
   } catch {
-    // Storage unavailable — best effort; duplicates are only a minor annoyance.
+    // Storage unavailable: best effort; duplicates are only a minor annoyance.
   }
 }
 
@@ -147,7 +147,7 @@ function showWebNotification(task: Task) {
 export function checkWebReminders(tasks: Task[], settings: AppSettings): void {
   if (!settings.notificationsEnabled) return
   if (webPermission() !== 'granted') return
-  // The user can already see the app — no need for an OS-level nudge.
+  // The user can already see the app: no need for an OS-level nudge.
   if (document.visibilityState === 'visible' && document.hasFocus()) return
 
   const delivered = readDelivered()
@@ -243,7 +243,7 @@ export async function scheduleNativeReminders(tasks: Task[], settings: AppSettin
     }
     await LocalNotifications.schedule({ notifications: notifications.slice(0, MAX_SCHEDULED) })
   } catch {
-    // Reminders are best-effort — never crash the app over a notification.
+    // Reminders are best-effort: never crash the app over a notification.
   }
 }
 

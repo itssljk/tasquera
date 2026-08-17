@@ -53,7 +53,7 @@
          - READ_EXTERNAL_STORAGE applies up to API 32 (Android 12L)
          - MANAGE_EXTERNAL_STORAGE for all-files sync access on Android 11+
          (READ_MEDIA_* is intentionally not declared: the app never touches the
-         media store — attachments live in the app's own IndexedDB.) -->
+         media store; attachments live in the app's own IndexedDB.) -->
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />

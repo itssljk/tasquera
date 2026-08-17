@@ -282,7 +282,7 @@ export default function App() {
           const deleted = await deleteSyncConflictCopies(syncDirHandle)
           if (deleted > 0) {
             setSyncResolveMsg(
-              `Merged ${conflicts.length} conflicting sync ${conflicts.length === 1 ? 'copy' : 'copies'} — edits from both devices were combined and the duplicates cleaned up.`,
+              `Merged ${conflicts.length} conflicting sync ${conflicts.length === 1 ? 'copy' : 'copies'}: edits from both devices were combined and the duplicates cleaned up.`,
             )
             window.setTimeout(() => setSyncResolveMsg(null), 8000)
           }
@@ -314,7 +314,7 @@ export default function App() {
       // On Android 11+ the user was sent to the system settings to grant
       // "All files access". Reconnect automatically when they return.
       setSyncNeedsPermission(true)
-      setSyncError('Allow "All files access" in Settings, then return here — Tasquera will reconnect automatically.')
+      setSyncError('Allow "All files access" in Settings, then return here. Tasquera will reconnect automatically.')
     }
   }
 
@@ -356,6 +356,38 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  // Close task/collection popup menus when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!menu) return
+    const handleOutsidePointer = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target) return
+      if (
+        target.closest('[role="menu"]') ||
+        target.closest('[aria-label="Task actions"]') ||
+        target.closest('[aria-label^="Actions for "]') ||
+        target.closest('[aria-label^="Actions for “"]') ||
+        target.closest('[data-menu-trigger]')
+      ) {
+        return
+      }
+      setMenu(null)
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMenu(null)
+      }
+    }
+
+    document.addEventListener('pointerdown', handleOutsidePointer)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [menu])
 
   useEffect(() => {
     if (route.name === 'collection' && !collections.some((c) => c.id === route.id)) {
@@ -550,9 +582,9 @@ export default function App() {
   const emptyCopy = (): { title: string; sub?: string } => {
     switch (effectiveRoute.name) {
       case 'inbox':
-        return { title: 'All caught up.', sub: 'Enjoy the quiet — or add what’s next.' }
+        return { title: 'All caught up.', sub: 'Enjoy the quiet, or add what’s next.' }
       case 'today':
-        return { title: 'Nothing due today.', sub: 'Take a breath — the rest can wait.' }
+        return { title: 'Nothing due today.', sub: 'Take a breath, the rest can wait.' }
       case 'upcoming':
         return { title: 'Nothing scheduled.', sub: 'Set a due date on a task and it will show up here.' }
       case 'collection':
@@ -584,8 +616,6 @@ export default function App() {
     onReorderCollections: store.reorderCollections,
     onReorderFavorites: store.reorderFavorites,
     onToggleFavoriteCollection: store.toggleFavoriteCollection,
-    canInstallPWA: isNativePlatform() ? false : pwaInstall.canInstall,
-    onInstallPWA: pwaInstall.promptInstall,
   }
 
   const routeKey =
@@ -659,7 +689,7 @@ export default function App() {
           </div>
         </div>
 
-        <div className={`mx-auto w-full px-6 pb-24 pt-10 sm:pt-14 ${view.mode === 'board' ? 'max-w-[1000px]' : 'max-w-[600px]'}`}>
+        <div className={`mx-auto w-full px-4 sm:px-6 pb-24 pt-8 sm:pt-12 ${view.mode === 'board' ? 'max-w-[1360px]' : 'max-w-[600px]'}`}>
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={routeKey}
@@ -892,8 +922,6 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
-
-      {menu && <div className="fixed inset-0 z-30" onClick={() => setMenu(null)} />}
 
       <AnimatePresence>
         {modalState.isOpen && (

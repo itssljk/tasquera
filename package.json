@@ -1,7 +1,7 @@
 {
   "name": "tasquera",
   "private": true,
-  "version": "0.8.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "A calm, focused, local-first task manager.",
   "license": "MIT",

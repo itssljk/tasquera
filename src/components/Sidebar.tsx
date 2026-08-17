@@ -13,17 +13,17 @@ import {
   InboxIcon,
   KanbanIcon,
   ListIcon,
-  LogoMark,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  SidebarIcon,
   StarFilledIcon,
   StarIcon,
   SunIcon,
   UpcomingIcon,
 } from './icons'
+
 import { APP_VERSION } from '../constants'
-import { SidebarInstallButton } from './InstallPWA'
 
 const menuItem =
   'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13.5px] text-ink-700 transition-colors duration-100 hover:bg-paper-100 hover:text-ink-900 active:bg-paper-200'
@@ -66,8 +66,6 @@ interface SidebarProps {
   onReorderFavorites?: (reordered: Collection[]) => void
   onToggleFavoriteCollection?: (id: string) => void
   onNavigate?: () => void
-  canInstallPWA?: boolean
-  onInstallPWA?: () => void
 }
 
 function NavLink({
@@ -202,8 +200,6 @@ export default function Sidebar(props: SidebarProps) {
     onReorderFavorites,
     onToggleFavoriteCollection,
     onNavigate,
-    canInstallPWA,
-    onInstallPWA,
   } = props
 
   const rootRef = useRef<HTMLElement>(null)
@@ -239,7 +235,7 @@ export default function Sidebar(props: SidebarProps) {
 
   // Expand the active collection's section when the user navigates to it, so
   // they can see where they are. Only fires on an actual navigation (route id
-  // change) — if the user collapses the section while already viewing it, that
+  // change): if the user collapses the section while already viewing it, that
   // choice is respected instead of being undone on every render.
   const lastRouteIdRef = useRef<string | null>(null)
   useEffect(() => {
@@ -527,8 +523,11 @@ export default function Sidebar(props: SidebarProps) {
             role="menu"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              className={menuItem}
+            <motion.button
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className={`${menuItem} cursor-pointer`}
               onClick={() => {
                 onToggleFavoriteCollection?.(c.id)
                 onMenu(null)
@@ -545,16 +544,25 @@ export default function Sidebar(props: SidebarProps) {
                   <span>Favorite</span>
                 </>
               )}
-            </button>
-            <button className={menuItem} onClick={() => beginRename(c)}>
+            </motion.button>
+            <motion.button
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className={`${menuItem} cursor-pointer`}
+              onClick={() => beginRename(c)}
+            >
               Rename
-            </button>
-            <button
-              className={`${menuItem} ${armedDelete === c.id ? 'font-medium text-terra-600' : ''}`}
+            </motion.button>
+            <motion.button
+              whileHover={{ x: 2 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ duration: 0.12 }}
+              className={`${menuItem} cursor-pointer ${armedDelete === c.id ? 'font-medium text-terra-600' : ''}`}
               onClick={() => handleDelete(c.id)}
             >
               {armedDelete === c.id ? 'Delete · sure?' : 'Delete'}
-            </button>
+            </motion.button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -604,42 +612,46 @@ export default function Sidebar(props: SidebarProps) {
         collapsed ? 'w-16' : 'w-64'
       }`}
     >
-      <div
-        className={`flex items-center px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] md:pt-5 ${
-          collapsed ? 'flex-col gap-2.5 px-2' : 'gap-2.5'
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => {
-            window.location.hash = '#/inbox'
-            onNavigate?.()
-          }}
-          title={collapsed ? 'Tasquera' : undefined}
-          aria-label={collapsed ? 'Tasquera' : undefined}
-          className="flex items-center gap-2.5 font-sans text-[20px] font-bold leading-none tracking-tight text-ink-900 transition-opacity hover:opacity-80"
-        >
-          <LogoMark className="size-6" />
-          {!collapsed && (
-            <span>
-              Tasquera<span className="text-pine-500">.</span>
-            </span>
+      {collapsed ? (
+        <div className="flex items-center justify-center px-2 pb-1 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] md:pt-4">
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              className="flex size-9 items-center justify-center rounded-xl text-ink-400 transition-colors duration-150 hover:bg-paper-200/70 hover:text-ink-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500/40"
+            >
+              <SidebarIcon className="size-[19px]" />
+            </button>
           )}
-        </button>
-        {onToggleCollapsed && (
+        </div>
+      ) : (
+        <div className="flex items-center justify-between px-4 pb-1 pt-[calc(env(safe-area-inset-top,0px)+1.25rem)] md:pt-4">
           <button
             type="button"
-            onClick={onToggleCollapsed}
-            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            className={`rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-700 ${
-              collapsed ? '' : 'ml-auto'
-            }`}
+            onClick={() => {
+              window.location.hash = '#/inbox'
+              onNavigate?.()
+            }}
+            className="font-sans text-[19px] font-bold leading-none tracking-tight text-ink-900 transition-opacity hover:opacity-80 focus-visible:outline-none"
           >
-            <ChevronIcon className={`size-4 transition-transform duration-200 ${collapsed ? '' : 'rotate-180'}`} />
+            Tasquera<span className="text-pine-500">.</span>
           </button>
-        )}
-      </div>
+          {onToggleCollapsed && (
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-label="Collapse sidebar"
+              title="Collapse sidebar"
+              className="rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500/40"
+            >
+              <SidebarIcon className="size-[18px]" />
+            </button>
+          )}
+        </div>
+      )}
+
 
       <div className="px-3 pt-3">
         <motion.button
@@ -812,13 +824,10 @@ export default function Sidebar(props: SidebarProps) {
         </div>
 
         <div className="pt-4 border-t border-paper-200/40 mt-3 space-y-1 pb-[calc(env(safe-area-inset-bottom,0px)+0.75rem)] md:pb-1">
-          {canInstallPWA && onInstallPWA && !collapsed && (
-            <SidebarInstallButton onClick={onInstallPWA} />
-          )}
           <NavLink href="#/settings" active={route.name === 'settings'} icon={<SettingsIcon className="size-[18px]" />} label="Settings" onClick={onNavigate} collapsed={collapsed} />
           {!collapsed && (
             <div className="mt-2.5 px-3 flex items-center justify-between text-[11.5px] text-ink-400">
-            <span className="font-mono font-medium text-ink-500">{APP_VERSION}</span>
+            <span className="font-mono font-medium text-ink-500">v{APP_VERSION}</span>
             <div className="flex items-center gap-2">
               <a
                 href="#/tos"

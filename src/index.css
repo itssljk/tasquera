@@ -31,7 +31,17 @@
   --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+:root {
+  color-scheme: dark;
+}
+
 @layer base {
+  :root,
+  html,
+  body {
+    color-scheme: dark;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
@@ -45,8 +55,18 @@
   ::selection {
     @apply bg-pine-100 text-ink-900;
   }
+}
 
-  /* Custom sleek dark scrollbar */
+/* Universal sleek dark scrollbar for all containers. Kept in the base layer so
+   per-container scrollbar-hiding utilities can still override it. */
+@layer base {
+  *,
+  *::before,
+  *::after {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(243, 238, 231, 0.18) transparent;
+  }
+
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -57,13 +77,18 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(243, 238, 231, 0.18);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.25);
+    background: rgba(243, 238, 231, 0.35);
   }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
 
   /* Dark theme for native date/time pickers */
   input[type="date"]::-webkit-calendar-picker-indicator,
@@ -71,7 +96,6 @@
     filter: invert(0.8) sepia(0.2) saturate(0.5) hue-rotate(80deg);
     cursor: pointer;
   }
-}
 
 @keyframes rise-in {
   from {

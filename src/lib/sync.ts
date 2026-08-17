@@ -202,7 +202,7 @@ function parseSyncPayload(raw: string): SyncPayload | null {
       return parsed as SyncPayload
     }
   } catch {
-    // Invalid JSON — treat as unreadable.
+    // Invalid JSON: treat as unreadable.
   }
   return null
 }

@@ -12,10 +12,12 @@ import {
   ImageIcon,
   LinkIcon,
   NotesIcon,
+  RepeatIcon,
   SearchIcon,
   SubtaskIcon,
 } from './icons'
 import { formatDeadline, formatDue, isDeadlineOverdue, isOverdue } from '../lib/date'
+import { recurrenceLabel } from '../lib/recurrence'
 
 interface SearchViewProps {
   tasks: Task[]
@@ -130,19 +132,27 @@ function SearchResultItem({
               <ExternalLinkIcon className="size-3 stroke-[2.2]" />
             </a>
 
-            {/* Priority pill */}
+            {/* Priority */}
             {task.priority && task.priority !== 'medium' && (
               <span
-                className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold uppercase tracking-wider ${
+                className={`inline-flex items-center gap-1 font-semibold ${
                   task.priority === 'urgent'
-                    ? 'bg-terra-600/20 text-terra-600'
+                    ? 'text-terra-600'
                     : task.priority === 'high'
-                      ? 'bg-amber-600/15 text-amber-600'
-                      : 'bg-slateblue-600/15 text-slateblue-600'
+                      ? 'text-amber-600'
+                      : 'text-slateblue-600'
                 }`}
               >
                 <FlagIcon className="size-3" />
-                {task.priority}
+                <span className="capitalize">{task.priority}</span>
+              </span>
+            )}
+
+            {/* Recurrence */}
+            {task.recurrence && !task.done && (
+              <span className="inline-flex items-center gap-1 text-pine-600 font-medium">
+                <RepeatIcon className="size-3" />
+                <span>{recurrenceLabel(task.recurrence)}</span>
               </span>
             )}
 
@@ -150,7 +160,7 @@ function SearchResultItem({
             {task.dueDate && !task.done && (
               <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
                 <CalendarIcon className="size-3 text-pine-600" />
-                {formatDue(task.dueDate)}
+                <span>{formatDue(task.dueDate)}</span>
               </span>
             )}
 
@@ -158,39 +168,38 @@ function SearchResultItem({
             {task.deadline && !task.done && (
               <span className={`inline-flex items-center gap-1 font-medium ${isDeadlineOverdue(task.deadline) ? 'text-terra-600 font-semibold' : 'text-amber-600'}`}>
                 <ClockIcon className="size-3" />
-                {formatDeadline(task.deadline)}
+                <span>{formatDeadline(task.deadline)}</span>
               </span>
             )}
 
-            {/* Subtasks badge */}
+            {/* Subtasks */}
             {subtasksCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-paper-200/70 px-2 py-0.5 text-[11px]">
+              <span className="inline-flex items-center gap-1 text-ink-500" title={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}>
                 <SubtaskIcon className="size-3 text-pine-600" />
-                <span>{subtasksDoneCount}/{subtasksCount}</span>
+                <span className="tabular-nums">{subtasksDoneCount}/{subtasksCount}</span>
               </span>
             )}
 
-            {/* Note badge */}
+            {/* Note */}
             {task.description && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-paper-200/70 px-2 py-0.5 text-[11px]">
-                <NotesIcon className="size-3 text-ink-500" />
-                <span>Note</span>
+              <span className="inline-flex items-center text-ink-400" title="Has notes">
+                <NotesIcon className="size-3" />
               </span>
             )}
 
             {/* Links count */}
             {linksCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-pine-500/15 px-2 py-0.5 text-[11px] font-medium text-pine-400">
+              <span className="inline-flex items-center gap-1 text-ink-400" title={`${linksCount} link${linksCount > 1 ? 's' : ''}`}>
                 <LinkIcon className="size-3" />
-                <span>{linksCount} link{linksCount > 1 ? 's' : ''}</span>
+                <span className="tabular-nums">{linksCount}</span>
               </span>
             )}
 
             {/* Images count */}
             {imagesCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-md bg-slateblue-600/10 px-2 py-0.5 text-[11px] text-slateblue-600">
+              <span className="inline-flex items-center gap-1 text-ink-400" title={`${imagesCount} photo${imagesCount > 1 ? 's' : ''}`}>
                 <ImageIcon className="size-3" />
-                <span>{imagesCount} photo{imagesCount > 1 ? 's' : ''}</span>
+                <span className="tabular-nums">{imagesCount}</span>
               </span>
             )}
           </div>

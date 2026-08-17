@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { DownloadIcon, LogoMark, PlusSquareIcon, ShareIcon, CloseIcon } from './icons'
+import { LogoMark, PlusSquareIcon, ShareIcon, CloseIcon } from './icons'
 import { isNativePlatform } from '../lib/sync'
 import { useIsDesktop } from '../lib/useMediaQuery'
 
@@ -171,23 +171,5 @@ export function IOSInstallModal({
         </>
       )}
     </AnimatePresence>
-  )
-}
-
-export function SidebarInstallButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[14px] font-semibold text-pine-300 transition-colors duration-150 bg-pine-500/15 hover:bg-pine-500/25 active:scale-[0.99] border border-pine-500/30"
-    >
-      <span className="relative z-10 shrink-0 text-pine-400">
-        <DownloadIcon className="size-[18px]" />
-      </span>
-      <span className="relative z-10 min-w-0 flex-1 truncate">Install App</span>
-      <span className="relative z-10 shrink-0 rounded-md bg-pine-500 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-paper-50">
-        PWA
-      </span>
-    </button>
   )
 }

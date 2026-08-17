@@ -132,7 +132,7 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
         <button
           type="button"
           disabled
-          className="shrink-0 self-start sm:self-center rounded-xl bg-paper-200 px-4 py-2 text-[13.5px] font-medium text-ink-400"
+          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-paper-200/80 px-4 py-2 text-[13.5px] font-medium text-ink-400 text-center"
         >
           Checking…
         </button>
@@ -143,45 +143,51 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
     }
     if (status === 'available') {
       return (
-        <button
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
           type="button"
           onClick={updater.download}
-          className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:bg-pine-700 active:scale-[0.98]"
+          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 active:scale-[0.98] text-center"
         >
           Download
-        </button>
+        </motion.button>
       )
     }
     if (status === 'ready') {
       return (
-        <button
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.97 }}
           type="button"
           onClick={updater.install}
-          className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white transition-colors hover:bg-pine-700 active:scale-[0.98]"
+          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 active:scale-[0.98] text-center"
         >
           Install
-        </button>
+        </motion.button>
       )
     }
     return (
-      <button
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.97 }}
         type="button"
         onClick={() => updater.check()}
-        className="shrink-0 self-start sm:self-center rounded-xl bg-paper-200 px-4 py-2 text-[13.5px] font-medium text-ink-700 transition-colors hover:bg-paper-300 active:bg-paper-400"
+        className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-paper-200/90 px-4 py-2 text-[13.5px] font-medium text-ink-700 shadow-2xs transition-colors hover:bg-paper-300 active:bg-paper-400 text-center"
       >
         Check for updates
-      </button>
+      </motion.button>
     )
   }
 
   return (
-    <section className="mt-10">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400">Updates</h2>
-      <div className="mt-3 rounded-2xl border border-paper-200/80 bg-paper-100/40 p-4 sm:p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-3">
+    <section className="mt-8 sm:mt-10">
+      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">Updates</h2>
+      <div className="rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5">
+        <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
             <div
-              className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${
+              className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
                 status === 'upToDate' ? 'bg-pine-500/15 text-pine-400' : 'bg-paper-200 text-ink-400'
               }`}
             >
@@ -199,9 +205,9 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
                     ? `${manifest.versionName} available`
                     : 'App updates'}
               </p>
-              <p className="mt-0.5 text-[12.5px] text-ink-500 leading-normal">
+              <p className="mt-1 text-[12.5px] text-ink-500 leading-relaxed">
                 {status === 'upToDate'
-                  ? `Tasquera ${updater.currentVersion ?? ''} is the latest version.`
+                  ? `Tasquera ${updater.currentVersion ? `v${updater.currentVersion.replace(/^v/, '')}` : ''} is the latest version.`
                   : status === 'available'
                     ? `A newer version is ready to download.`
                     : status === 'downloading'

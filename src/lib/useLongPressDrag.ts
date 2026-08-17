@@ -16,7 +16,7 @@ const CLICK_SUPPRESS_MS = 400
  * finger moves first, it's treated as a scroll and the press is cancelled.
  *
  * On fine-pointer (mouse/pen) devices framer's built-in drag is used, so these
- * handlers are inert — pass `dragListener={!isTouch}` on the `Reorder.Item`.
+ * handlers are inert; pass `dragListener={!isTouch}` on the `Reorder.Item`.
  *
  * A short suppression window after the drag starts stops the browser's
  * post-drag `click` from triggering the row's own onClick (e.g. opening the

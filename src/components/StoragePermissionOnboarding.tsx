@@ -59,11 +59,11 @@ export default function StoragePermissionOnboarding({
             Allow folder access to enable sync
           </h1>
           <p className="mt-3 text-[14.5px] leading-relaxed text-ink-600">
-            Tasquera saves your tasks to a local folder —{' '}
+            Tasquera saves your tasks to a local folder ({' '}
             <code className="rounded bg-paper-200/70 px-1.5 py-0.5 font-mono text-[12.5px] text-pine-600">
               Documents/Tsqsync/
             </code>{' '}
-            — that you share with Syncthing. Android 11 and newer need one extra permission before
+            ) that you share with Syncthing. Android 11 and newer need one extra permission before
             Tasquera can read and write that folder.
           </p>
         </div>
@@ -106,7 +106,7 @@ export default function StoragePermissionOnboarding({
 
         <p className="mt-7 flex items-center justify-center gap-1.5 text-center text-[11.5px] text-ink-400">
           <ShieldCheckIcon className="size-3.5 shrink-0" />
-          100% local-first — your data never leaves your device
+          100% local-first: your data never leaves your device
         </p>
       </div>
     </motion.div>
