@@ -1,7 +1,6 @@
 import { Capacitor, registerPlugin } from '@capacitor/core'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import { idbKeyval } from './idb'
-import { collectImages } from './attachments'
 import type { Collection, Task, Tombstone } from '../types'
 
 interface StoragePermissionPlugin {
@@ -17,7 +16,6 @@ export interface SyncPayload {
   tasks: Task[]
   collections: Collection[]
   tombstones?: Tombstone[]
-  attachments?: Record<string, string>
 }
 
 export interface NativeSyncHandle {
@@ -45,14 +43,13 @@ export function isFileSystemAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window
 }
 
-/** Build the payload to persist to the sync folder, including image attachments. */
+/** Build the payload to persist to the sync folder. */
 export async function buildSyncPayload(
   tasks: Task[],
   collections: Collection[],
   tombstones: Tombstone[],
 ): Promise<SyncPayload> {
-  const attachments = await collectImages(tasks.flatMap((t) => t.images ?? []))
-  return { version: 2, timestamp: Date.now(), tasks, collections, tombstones, attachments }
+  return { version: 2, timestamp: Date.now(), tasks, collections, tombstones }
 }
 
 /**

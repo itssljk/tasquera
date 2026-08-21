@@ -10,13 +10,10 @@ function makeTask(overrides: Partial<Task> & { id: string; title: string }): Tas
     completedAt: null,
     listId: null,
     dueDate: null,
-    deadline: null,
     description: '',
     priority: 'medium',
     subtasks: [],
     links: [],
-    images: [],
-    archived: false,
     status: 'todo',
     ...overrides,
   }
@@ -67,13 +64,6 @@ describe('searchTasks', () => {
     expect(r).toHaveLength(1)
     expect(r[0].match.field).toBe('list')
     expect(r[0].listName).toBe('Work')
-  })
-
-  it('excludes archived tasks by default unless requested', () => {
-    const tasks = [makeTask({ id: '1', title: 'Milk', archived: true })]
-    expect(searchTasks(tasks, collections, 'milk')).toEqual([])
-    expect(searchTasks(tasks, collections, 'milk is:archived')).toHaveLength(1)
-    expect(searchTasks(tasks, collections, 'milk', { includeArchived: true })).toHaveLength(1)
   })
 
   it('supports operators is:done and p:urgent', () => {

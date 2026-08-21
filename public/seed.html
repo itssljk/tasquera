@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Seeding</title></head>
+<body>
+<script>
+  const params = new URLSearchParams(location.search)
+  const route = params.get('route') || 'today'
+  const now = Date.now()
+  const day = 86400000
+  const tasks = [
+    { id: 't1', title: 'Design landing page hero', createdAt: now - 2*day, dueDate: '2026-08-19', priority: 'high', status: 'todo', listId: null, subtasks: [{id:'s1', title:'Wireframe layout', done: true}, {id:'s2', title:'Pick hero imagery', done: false}], description: 'Focus on the primary CTA above the fold.', done: false, completedAt: null, deadline: null, links: [], images: [], archived: false, recurrence: null },
+    { id: 't2', title: 'Review PR feedback', createdAt: now - 1*day, dueDate: '2026-08-18', priority: 'urgent', status: 'todo', listId: 'c1', done: false, completedAt: null, deadline: null, subtasks: [], links: [], images: [], archived: false, recurrence: null },
+    { id: 't3', title: 'Book dentist appointment', createdAt: now - 5*day, dueDate: '2026-08-21', priority: 'low', status: 'todo', listId: 'c2', done: false, completedAt: null, deadline: null, subtasks: [], links: [], images: [], archived: false, recurrence: null },
+    { id: 't4', title: 'Plan weekend hike route', createdAt: now - 3*day, dueDate: '2026-08-23', priority: 'medium', status: 'in_progress', listId: 'c2', subtasks: [{id:'s3', title:'Check trail conditions', done: false}], done: false, completedAt: null, deadline: null, links: [], images: [], archived: false, recurrence: null },
+    { id: 't5', title: 'Write release notes', createdAt: now - 6*day, dueDate: '2026-08-25', priority: 'medium', status: 'todo', listId: 'c1', done: false, completedAt: null, deadline: null, subtasks: [], links: [], images: [], archived: false, recurrence: null },
+    { id: 't6', title: 'Water the plants', createdAt: now - 12*day, done: true, status: 'done', completedAt: now - 1*day, dueDate: '2026-08-18', priority: 'low', listId: 'c2', deadline: null, subtasks: [], links: [], images: [], archived: false, recurrence: null },
+    { id: 't7', title: 'Ship v1.0 to the Play Store', createdAt: now - 20*day, done: true, status: 'done', completedAt: now - 3*day, priority: 'high', listId: 'c1', deadline: null, subtasks: [], links: [], images: [], archived: false, recurrence: null },
+  ]
+  const collections = [
+    { id: 'c1', kind: 'list', name: 'Work', favorite: true, createdAt: now - 30*day, updatedAt: now },
+    { id: 'c2', kind: 'list', name: 'Personal', favorite: false, createdAt: now - 25*day, updatedAt: now },
+    { id: 'c3', kind: 'board', name: 'Product Launch', favorite: false, createdAt: now - 10*day, updatedAt: now },
+  ]
+  const state = { version: 2, tasks, collections, tombstones: [], settings: { showQuickAdd: false, autoArchiveDays: 7, notificationsEnabled: false, notificationTime: '09:00' } }
+  localStorage.setItem('tasquera.state.v2', JSON.stringify(state))
+  location.replace('/#/' + route)
+</script>
+</body>
+</html>

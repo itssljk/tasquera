@@ -63,19 +63,19 @@ export function AppUpdateBanner({ updater }: { updater: AppUpdater }) {
             <DownloadIcon className="size-4.5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[14px] font-semibold leading-snug">{title}</p>
-            <p className="mt-0.5 text-[12.5px] text-ink-500">{subtitle}</p>
+            <p className="text-body-lg font-semibold leading-snug">{title}</p>
+            <p className="mt-0.5 text-small text-ink-500">{subtitle}</p>
 
             {status === 'downloading' && <ProgressBar percent={updater.progress} />}
 
             {status === 'available' && manifest.releaseNotes && (
-              <p className="mt-2 rounded-xl bg-paper-200/50 px-3 py-2 text-[12px] leading-relaxed text-ink-600">
+              <p className="mt-2 rounded-xl bg-paper-200/50 px-3 py-2 text-small leading-relaxed text-ink-600">
                 {manifest.releaseNotes}
               </p>
             )}
 
             {updater.needsPermission && (
-              <p className="mt-2 flex items-start gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-[12px] leading-snug text-amber-900">
+              <p className="mt-2 flex items-start gap-1.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-2.5 text-small leading-snug text-amber-600">
                 <InfoIcon className="mt-0.5 size-3.5 shrink-0" />
                 Allow “Install unknown apps” for Tasquera, then return and tap Install.
               </p>
@@ -86,7 +86,7 @@ export function AppUpdateBanner({ updater }: { updater: AppUpdater }) {
                 <button
                   type="button"
                   onClick={status === 'available' ? updater.download : updater.install}
-                  className="rounded-xl bg-pine-600 px-4 py-2 text-[13px] font-medium text-white shadow-xs transition-colors hover:bg-pine-700 active:scale-[0.98]"
+                  className="rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-white shadow-xs transition-colors hover:bg-pine-700 active:scale-[0.98]"
                 >
                   {status === 'available' ? 'Download update' : 'Install'}
                 </button>
@@ -94,7 +94,7 @@ export function AppUpdateBanner({ updater }: { updater: AppUpdater }) {
                   <button
                     type="button"
                     onClick={updater.dismiss}
-                    className="rounded-xl px-3 py-2 text-[13px] font-medium text-ink-500 transition-colors hover:bg-paper-200"
+                    className="rounded-xl px-3 py-2 text-body font-medium text-ink-500 transition-colors hover:bg-paper-200"
                   >
                     Later
                   </button>
@@ -132,7 +132,7 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
         <button
           type="button"
           disabled
-          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-paper-200/80 px-4 py-2 text-[13.5px] font-medium text-ink-400 text-center"
+          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-paper-200/80 px-4 py-2 text-body font-medium text-ink-400 text-center"
         >
           Checking…
         </button>
@@ -148,7 +148,7 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
           whileTap={{ scale: 0.97 }}
           type="button"
           onClick={updater.download}
-          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 active:scale-[0.98] text-center"
+          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 active:scale-[0.98] text-center"
         >
           Download
         </motion.button>
@@ -161,7 +161,7 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
           whileTap={{ scale: 0.97 }}
           type="button"
           onClick={updater.install}
-          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 active:scale-[0.98] text-center"
+          className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 active:scale-[0.98] text-center"
         >
           Install
         </motion.button>
@@ -173,7 +173,7 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
         whileTap={{ scale: 0.97 }}
         type="button"
         onClick={() => updater.check()}
-        className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-paper-200/90 px-4 py-2 text-[13.5px] font-medium text-ink-700 shadow-2xs transition-colors hover:bg-paper-300 active:bg-paper-400 text-center"
+        className="shrink-0 self-start sm:self-center w-full sm:w-auto rounded-xl bg-paper-200/90 px-4 py-2 text-body font-medium text-ink-700 shadow-2xs transition-colors hover:bg-paper-300 active:bg-paper-400 text-center"
       >
         Check for updates
       </motion.button>
@@ -182,7 +182,7 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
 
   return (
     <section className="mt-8 sm:mt-10">
-      <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">Updates</h2>
+      <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">Updates</h2>
       <div className="rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5">
         <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -198,14 +198,14 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink-900 leading-snug">
+              <p className="text-body-lg font-semibold text-ink-900 leading-snug">
                 {status === 'upToDate'
                   ? 'You’re up to date'
                   : manifest
                     ? `${manifest.versionName} available`
                     : 'App updates'}
               </p>
-              <p className="mt-1 text-[12.5px] text-ink-500 leading-relaxed">
+              <p className="mt-1 text-small text-ink-500 leading-relaxed">
                 {status === 'upToDate'
                   ? `Tasquera ${updater.currentVersion ? `v${updater.currentVersion.replace(/^v/, '')}` : ''} is the latest version.`
                   : status === 'available'
@@ -226,18 +226,18 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
         {status === 'downloading' && (
           <div className="mt-3.5">
             <ProgressBar percent={updater.progress} />
-            <p className="mt-1.5 text-[12px] font-medium text-ink-500">{Math.round(updater.progress)}%</p>
+            <p className="mt-1.5 text-small font-medium text-ink-500">{Math.round(updater.progress)}%</p>
           </div>
         )}
 
         {manifest?.releaseNotes && (status === 'available' || status === 'ready') && (
-          <div className="mt-3.5 rounded-xl bg-paper-200/50 p-3 text-[12.5px] leading-relaxed text-ink-600">
+          <div className="mt-3.5 rounded-xl bg-paper-200/50 p-3 text-small leading-relaxed text-ink-600">
             <span className="font-semibold text-ink-800">What’s new:</span> {manifest.releaseNotes}
           </div>
         )}
 
         {updater.needsPermission && (
-          <div className="mt-3.5 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] leading-snug text-amber-900">
+          <div className="mt-3.5 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-small leading-snug text-amber-600">
             <InfoIcon className="mt-0.5 size-4 shrink-0" />
             Allow “Install unknown apps” for Tasquera in the system settings that just opened, then return and tap
             Install.
@@ -245,13 +245,13 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
         )}
 
         {updater.message && status !== 'downloading' && (
-          <p className="mt-3.5 rounded-xl border border-pine-500/20 bg-pine-500/10 p-3 text-[12.5px] font-medium text-pine-700">
+          <p className="mt-3.5 rounded-xl border border-pine-500/20 bg-pine-500/10 p-3 text-small font-medium text-pine-700">
             {updater.message}
           </p>
         )}
 
         {updater.error && (
-          <div className="mt-3.5 rounded-xl border border-terra-500/20 bg-terra-500/10 p-3 text-[12.5px] font-medium text-terra-700">
+          <div className="mt-3.5 rounded-xl border border-terra-500/20 bg-terra-500/10 p-3 text-small font-medium text-terra-700">
             {updater.error}
           </div>
         )}

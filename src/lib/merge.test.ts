@@ -12,13 +12,10 @@ function task(id: string, updatedAt: number, extra: Partial<Task> = {}): Task {
     completedAt: null,
     listId: null,
     dueDate: null,
-    deadline: null,
     description: '',
     priority: 'medium',
     subtasks: [],
     links: [],
-    images: [],
-    archived: false,
     status: 'todo',
     ...extra,
   }

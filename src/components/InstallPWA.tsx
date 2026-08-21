@@ -109,8 +109,8 @@ export function IOSInstallModal({
               <div className="flex items-center gap-3">
                 <LogoMark className="size-7 shrink-0" />
                 <div>
-                  <h3 className="font-sans text-[17px] font-bold text-ink-900 leading-tight">Install Tasquera</h3>
-                  <p className="text-[12px] text-ink-500">Add to iPhone / iPad home screen</p>
+                  <h3 className="font-sans text-title font-bold text-ink-900 leading-tight">Install Tasquera</h3>
+                  <p className="text-small text-ink-500">Add to iPhone / iPad home screen</p>
                 </div>
               </div>
               <button
@@ -125,9 +125,9 @@ export function IOSInstallModal({
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-6 py-5">
-              <div className="space-y-3.5 text-[13.5px] text-ink-700">
+              <div className="space-y-3.5 text-body text-ink-700">
                 <div className="flex items-start gap-3 rounded-xl bg-paper-200/50 p-3.5 border border-paper-200/60">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-[12px] font-bold text-white">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-small font-bold text-white">
                     1
                   </span>
                   <p className="leading-snug">
@@ -137,7 +137,7 @@ export function IOSInstallModal({
                 </div>
 
                 <div className="flex items-start gap-3 rounded-xl bg-paper-200/50 p-3.5 border border-paper-200/60">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-[12px] font-bold text-white">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-small font-bold text-white">
                     2
                   </span>
                   <p className="leading-snug">
@@ -147,7 +147,7 @@ export function IOSInstallModal({
                 </div>
 
                 <div className="flex items-start gap-3 rounded-xl bg-paper-200/50 p-3.5 border border-paper-200/60">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-[12px] font-bold text-white">
+                  <span className="flex size-6 shrink-0 items-center justify-center rounded-lg bg-pine-600 text-small font-bold text-white">
                     3
                   </span>
                   <p className="leading-snug">
@@ -162,7 +162,7 @@ export function IOSInstallModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-xl bg-pine-600 py-2.5 text-center text-[14px] font-semibold text-white shadow-xs transition-colors hover:bg-pine-700 active:scale-[0.99]"
+                className="w-full rounded-xl bg-pine-600 py-2.5 text-center text-body-lg font-semibold text-white shadow-xs transition-colors hover:bg-pine-700 active:scale-[0.99]"
               >
                 Got it
               </button>

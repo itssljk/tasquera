@@ -1,0 +1,32 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{background:#1a1a1a;margin:0;color:#eee;font:13px/1.4 system-ui,sans-serif}
+#stage{width:320px;height:600px;overflow:hidden;position:relative;background:#000}
+#img{position:absolute;top:0;left:0;transform-origin:0 0}
+.bar{display:flex;gap:4px;flex-wrap:wrap;padding:6px;background:#111}
+button{flex:1 1 64px;padding:6px 4px;border:1px solid #333;border-radius:6px;background:#262626;color:#eee;font:inherit}
+button:active{background:#3a3a3a}
+#info{padding:4px 8px;color:#999;font-size:11px}
+</style></head><body>
+<div id="info">pan · zoom · switch</div>
+<div id="stage"><img id="img" src="/shots/desktop-today.png"></div>
+<div class="bar">
+<button onclick="switchImg('/shots/desktop-today.png')">Today</button>
+<button onclick="switchImg('/shots/desktop-inbox.png')">Inbox</button>
+<button onclick="switchImg('/shots/desktop-upcoming.png')">Upcoming</button>
+<button onclick="switchImg('/shots/mobile-today.png')">Mobile</button>
+</div>
+<div class="bar">
+<button onclick="pan(-160,0)">◀</button><button onclick="pan(160,0)">▶</button>
+<button onclick="pan(0,-140)">▲</button><button onclick="pan(0,140)">▼</button>
+<button onclick="zoom(0.24)">Fit</button><button onclick="zoom(3)">100%</button>
+</div>
+<script>
+const img=document.getElementById('img');
+let scale=0.24,x=0,y=0;
+function apply(){img.style.transform='scale('+scale+') translate('+x+'px,'+y+'px)'}
+function pan(dx,dy){x+=dx;y+=dy;apply()}
+function zoom(s){scale=s;x=0;y=0;apply()}
+function switchImg(src){img.src=src;zoom(0.24)}
+apply();
+</script>
+</body></html>

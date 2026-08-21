@@ -1,9 +1,8 @@
 // Small key-value store over IndexedDB, used to persist the sync directory
-// handle (survives reloads) and image attachments (off localStorage quota).
+// handle (survives reloads).
 const DB_NAME = 'tasquera_sync_db'
 const DB_VERSION = 2
 const HANDLES_STORE = 'handles'
-const IMAGES_STORE = 'images'
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -11,7 +10,6 @@ function openDB(): Promise<IDBDatabase> {
     request.onupgradeneeded = () => {
       const db = request.result
       if (!db.objectStoreNames.contains(HANDLES_STORE)) db.createObjectStore(HANDLES_STORE)
-      if (!db.objectStoreNames.contains(IMAGES_STORE)) db.createObjectStore(IMAGES_STORE)
     }
     request.onsuccess = () => resolve(request.result)
     request.onerror = () => reject(request.error)
@@ -57,4 +55,3 @@ function makeStore(store: string): Store {
 }
 
 export const idbKeyval = makeStore(HANDLES_STORE)
-export const imageStore = makeStore(IMAGES_STORE)

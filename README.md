@@ -5,10 +5,10 @@ A calm, focused task manager built to help you organize your work without the no
 ## Features
 
 - **Local-first**: All tasks, lists, and settings live in your browser's `localStorage`. No accounts, no servers, no tracking.
-- **Views**: Inbox, Today, Upcoming, Calendar, Kanban Boards, Completed, and Archive.
+- **Views**: Inbox, Today, Upcoming, Calendar, Kanban Boards, and Completed.
 - **Boards and lists**: Kanban boards with drag-and-drop columns, or clean task lists.
-- **Task details**: Subtasks with progress tracking, notes, links, image attachments, priorities, and due dates.
-- **Reminders**: Due-date and deadline notifications. On Android they arrive as real OS notifications even when the app is closed; in the browser/PWA they appear while Tasquera is open (browsers can't schedule background notifications without a push server). Enable them in Settings → Notifications.
+- **Task details**: Subtasks with progress tracking, notes, links, priorities, and due dates.
+- **Reminders**: Due-date notifications. On Android they arrive as real OS notifications even when the app is closed; in the browser/PWA they appear while Tasquera is open (browsers can't schedule background notifications without a push server). Enable them in Settings → Notifications.
 - **Search**: Full-text search across task titles, notes, subtasks, links, and lists (`Ctrl/Cmd+K`).
 - **Keyboard shortcuts**: Quick-add with `/`, save with `Enter`, undo with `Ctrl/Cmd+Z`, and drag to reorder.
 - **Backup and restore**: Export or import your data as JSON anytime in Settings.
@@ -118,12 +118,9 @@ Notes:
 - [Figtree](https://github.com/erikdkennedy/figtree) (SIL OFL 1.1)
 
 ## Data & Privacy
-
-All data is stored locally on your device: in your browser's `localStorage` (key `tasquera.state.v2`) on the web, or in the app's private storage on Android. Clearing browser storage or uninstalling the app removes your data, so export a backup from Settings first. Image attachments are stored in IndexedDB (referenced by id from your tasks) so they don't count against the localStorage quota, and they're included in backups and in the sync folder's JSON file. No accounts, no servers, no tracking.
-
-Note: because image attachments are embedded in the sync file as base64, a photo-heavy task list makes `tasquera-sync.json` large (multi-MB), and Syncthing re-syncs the whole file on every change. Tasquera shows a warning in Settings when the sync file exceeds ~2 MB.
+ 
+All data is stored locally on your device: in your browser's `localStorage` (key `tasquera.state.v2`) on the web, or in the app's private storage on Android. Clearing browser storage or uninstalling the app removes your data, so export a backup from Settings first. No accounts, no servers, no tracking.
 
 ## License
 
 MIT: see [LICENSE](LICENSE). Bundled third-party software and fonts are attributed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-

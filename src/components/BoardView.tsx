@@ -4,17 +4,13 @@ import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
 import BoardCardDetails from './BoardCardDetails'
 import type { Collection, MenuState, PriorityLevel, Task, TaskStatus } from '../types'
-import { formatDue, formatDeadline, isOverdue, isDeadlineOverdue } from '../lib/date'
-import { triggerTaskConfetti } from '../lib/confetti'
+import { formatDue, isOverdue } from '../lib/date'
 import {
-  ArchiveIcon,
   CalendarIcon,
   ChevronIcon,
-  ClockIcon,
   EllipsisVerticalIcon,
   FlagIcon,
   GripVerticalIcon,
-  ImageIcon,
   LinkIcon,
   NotesIcon,
   PlusIcon,
@@ -27,13 +23,12 @@ interface BoardViewProps {
   tasks: Task[]
   collections: Collection[]
   menu: MenuState
+  weekStartsOn?: 'monday' | 'sunday'
   onMenu: (menu: MenuState) => void
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onUpdate: (id: string, patch: Partial<Task>) => void
   onMove: (id: string, listId: string | null) => void
-  onArchive: (id: string) => void
-  onArchiveOldCompleted?: (days?: number) => void
   onOpenCreateModal?: (listId?: string | null, status?: TaskStatus) => void
   onEditDetails?: (task: Task) => void
   onReorderColumnTasks?: (status: TaskStatus, reordered: Task[]) => void
@@ -193,10 +188,9 @@ export default function BoardView({
   onDelete,
   onUpdate,
   onMove,
-  onArchive,
-  onArchiveOldCompleted,
   onOpenCreateModal,
   onReorderColumnTasks,
+  weekStartsOn = 'monday',
 }: BoardViewProps) {
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null)
   const [showOlderDone, setShowOlderDone] = useState(false)
@@ -252,10 +246,6 @@ export default function BoardView({
     setDragOverCol(null)
     if (!target) return
     if (target === taskStatusOf(task)) return
-    if (target === 'done') {
-      const colEl = columnsAreaRef.current?.querySelector(`[data-col="${target}"]`)
-      triggerTaskConfetti((colEl as HTMLElement) ?? null)
-    }
     onUpdate(task.id, {
       status: target,
       done: target === 'done',
@@ -263,10 +253,7 @@ export default function BoardView({
     })
   }
 
-  const handleToggleClick = (e: MouseEvent<HTMLButtonElement>, task: Task) => {
-    if (task.status === 'in_progress') {
-      triggerTaskConfetti(e.currentTarget)
-    }
+  const handleToggleClick = (_e: MouseEvent<HTMLButtonElement>, task: Task) => {
     onToggle(task.id)
   }
 
@@ -275,17 +262,13 @@ export default function BoardView({
     const subtasksCount = t.subtasks?.length ?? 0
     const subtasksDoneCount = t.subtasks?.filter((s) => s.done).length ?? 0
     const linksCount = t.links?.length ?? 0
-    const imagesCount = t.images?.length ?? 0
     const isDone = t.done || t.status === 'done'
     const dueOverdue = !isDone && !!t.dueDate && isOverdue(t.dueDate)
-    const deadlineOverdue = !isDone && !!t.deadline && isDeadlineOverdue(t.deadline)
     const hasMeta =
       (t.priority !== undefined && t.priority !== 'medium') ||
       !!t.dueDate ||
-      !!t.deadline ||
       subtasksCount > 0 ||
       linksCount > 0 ||
-      imagesCount > 0 ||
       !!t.description
 
     const priorityColor =
@@ -299,301 +282,246 @@ export default function BoardView({
 
     return (
       <>
-          <GripVerticalIcon
-            className="mt-1.5 hidden size-3.5 shrink-0 cursor-grab text-ink-400/60 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing sm:block"
-            aria-label="Drag to reorder vertically"
-          />
+        <GripVerticalIcon
+          className="mt-1.5 hidden size-3.5 shrink-0 cursor-grab text-ink-400/60 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing sm:block"
+          aria-label="Drag to reorder vertically"
+        />
 
-          <BoardCheckCircle
-            done={isDone}
-            status={t.status}
-            onClick={(e) => {
-              e.stopPropagation()
-              handleToggleClick(e, t)
-            }}
-          />
+        <BoardCheckCircle
+          done={isDone}
+          status={t.status}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleToggleClick(e, t)
+          }}
+        />
 
-          <div className="min-w-0 flex-1">
-            <p
-              className={`text-[14px] font-medium leading-snug text-ink-900 ${
-                isDone ? 'text-ink-400 line-through' : ''
-              }`}
-            >
-              {t.title}
-            </p>
+        <div className="min-w-0 flex-1">
+          <p
+            className={`text-body-lg font-medium leading-snug text-ink-900 ${
+              isDone ? 'text-ink-400 line-through' : ''
+            }`}
+          >
+            {t.title}
+          </p>
 
-            {hasMeta && (
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-medium text-ink-400">
-                {t.priority !== undefined && t.priority !== 'medium' && (
-                  <span className={`inline-flex items-center gap-1 ${priorityColor}`}>
-                    <FlagIcon className="size-3" />
-                    <span className="capitalize">{t.priority}</span>
-                  </span>
-                )}
+          {hasMeta && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption font-medium text-ink-400">
+              {t.priority !== undefined && t.priority !== 'medium' && (
+                <span className={`inline-flex items-center gap-1 ${priorityColor}`}>
+                  <FlagIcon className="size-3" />
+                  <span className="capitalize">{t.priority}</span>
+                </span>
+              )}
 
-                {t.dueDate && (
-                  <span
-                    className={`inline-flex items-center gap-1 ${
-                      dueOverdue ? 'font-semibold text-terra-600' : ''
-                    }`}
-                  >
-                    <CalendarIcon className="size-3" />
-                    {formatDue(t.dueDate)}
-                  </span>
-                )}
-
-                {t.deadline && (
-                  <span
-                    className={`inline-flex items-center gap-1 ${
-                      deadlineOverdue ? 'font-semibold text-terra-600' : 'text-amber-600/90'
-                    }`}
-                  >
-                    <ClockIcon className="size-3" />
-                    {formatDeadline(t.deadline)}
-                  </span>
-                )}
-
-                {subtasksCount > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <SubtaskIcon className="size-3 text-pine-500" />
-                    {subtasksDoneCount}/{subtasksCount}
-                  </span>
-                )}
-
-                {linksCount > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <LinkIcon className="size-3" />
-                    {linksCount}
-                  </span>
-                )}
-
-                {imagesCount > 0 && (
-                  <span className="inline-flex items-center gap-1">
-                    <ImageIcon className="size-3" />
-                    {imagesCount}
-                  </span>
-                )}
-
-                {t.description && <NotesIcon className="size-3" aria-label="Has notes" />}
-              </div>
-            )}
-          </div>
-
-          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-            <motion.button
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.9 }}
-              onClick={(e) => handleCardMenuToggle(e, t.id)}
-              aria-label="Task actions"
-              className="mt-0.5 rounded-lg p-1 text-ink-400 transition-opacity hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:group-hover:opacity-100"
-            >
-              <EllipsisVerticalIcon className="size-3.5" />
-            </motion.button>
-
-            <AnimatePresence>
-              {menuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 26 }}
-                  style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                  className={`absolute right-0 z-50 w-64 max-h-[min(360px,75vh)] overflow-y-auto rounded-2xl border border-paper-200/80 bg-paper-100/95 p-1.5 text-[12.5px] shadow-2xl backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                    menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+              {t.dueDate && (
+                <span
+                  className={`inline-flex items-center gap-1 ${
+                    dueOverdue ? 'font-semibold text-terra-600' : ''
                   }`}
-                  role="menu"
-                  onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Status */}
-                  <div className="grid grid-cols-3 gap-1 px-0.5 pt-0.5">
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.04, y: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.12 }}
-                      onClick={() => {
-                        onUpdate(t.id, { status: 'todo', done: false, completedAt: null })
-                        onMenu(null)
-                      }}
-                      className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11.5px] font-medium whitespace-nowrap text-center transition-all ${
-                        !t.done && (t.status === 'todo' || !t.status)
-                          ? 'bg-paper-200 font-semibold text-ink-900 shadow-xs'
-                          : 'text-ink-500 hover:bg-paper-200/80 hover:text-ink-900'
-                      }`}
-                    >
-                      To Do
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.04, y: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.12 }}
-                      onClick={() => {
-                        onUpdate(t.id, { status: 'in_progress', done: false, completedAt: null })
-                        onMenu(null)
-                      }}
-                      className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11.5px] font-medium whitespace-nowrap text-center transition-all ${
-                        !t.done && t.status === 'in_progress'
-                          ? 'bg-amber-600/20 font-semibold text-amber-600 shadow-xs'
-                          : 'text-ink-500 hover:bg-amber-500/10 hover:text-amber-600'
-                      }`}
-                    >
-                      In Progress
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.04, y: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.12 }}
-                      onClick={() => {
-                        onUpdate(t.id, { status: 'done', done: true, completedAt: t.completedAt ?? Date.now() })
-                        onMenu(null)
-                      }}
-                      className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11.5px] font-medium whitespace-nowrap text-center transition-all ${
-                        t.done || t.status === 'done'
-                          ? 'bg-pine-500/20 font-semibold text-pine-400 shadow-xs'
-                          : 'text-ink-500 hover:bg-pine-500/15 hover:text-pine-400'
-                      }`}
-                    >
-                      Done
-                    </motion.button>
-                  </div>
+                  <CalendarIcon className="size-3" />
+                  {formatDue(t.dueDate)}
+                </span>
+              )}
 
-                  <div className="mx-1.5 my-1.5 h-px bg-paper-200/60" />
+              {subtasksCount > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <SubtaskIcon className="size-3 text-pine-500" />
+                  {subtasksDoneCount}/{subtasksCount}
+                </span>
+              )}
 
-                  {/* Priority */}
-                  <div className="flex items-center justify-between px-2 py-1">
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-                      Priority
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {PRIORITIES.map((p) => {
-                        const active = (t.priority ?? 'medium') === p.id
-                        return (
-                          <motion.button
-                            key={p.id}
-                            type="button"
-                            title={p.label}
-                            aria-label={`Priority ${p.label}`}
-                            whileHover={{ scale: 1.3 }}
-                            whileTap={{ scale: 0.88 }}
-                            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                            onClick={() => {
-                              onUpdate(t.id, { priority: p.id })
-                              onMenu(null)
-                            }}
-                            className={`cursor-pointer rounded-full p-1.5 transition-colors ${
-                              active ? 'bg-paper-200 ring-1 ring-paper-300' : 'hover:bg-paper-200/80'
-                            }`}
-                          >
-                            <span className={`block size-2.5 rounded-full ${p.dot} shadow-xs transition-transform`} />
-                          </motion.button>
-                        )
-                      })}
-                    </div>
-                  </div>
+              {linksCount > 0 && (
+                <span className="inline-flex items-center gap-1">
+                  <LinkIcon className="size-3" />
+                  {linksCount}
+                </span>
+              )}
 
-                  <div className="mx-1.5 my-1.5 h-px bg-paper-200/60" />
+              {t.description && <NotesIcon className="size-3" aria-label="Has notes" />}
+            </div>
+          )}
+        </div>
 
-                  {/* Move to */}
-                  <p className="px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wider text-ink-400">
-                    Move to
-                  </p>
+        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => handleCardMenuToggle(e, t.id)}
+            aria-label="Task actions"
+            className="mt-0.5 rounded-lg p-1 text-ink-400 transition-opacity hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:group-hover:opacity-100"
+          >
+            <EllipsisVerticalIcon className="size-3.5" />
+          </motion.button>
+
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
+                transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
+                className={`absolute right-0 z-50 w-64 max-h-[min(360px,75vh)] overflow-y-auto rounded-2xl border border-paper-200/80 bg-paper-100/95 p-1.5 text-small shadow-2xl backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                  menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                }`}
+                role="menu"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Status */}
+                <div className="grid grid-cols-3 gap-1 px-0.5 pt-0.5">
                   <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.04, y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={() => {
+                      onUpdate(t.id, { status: 'todo', done: false, completedAt: null })
+                      onMenu(null)
+                    }}
+                    className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
+                      !t.done && (t.status === 'todo' || !t.status)
+                        ? 'bg-paper-200 font-semibold text-ink-900 shadow-xs'
+                        : 'text-ink-500 hover:bg-paper-200/80 hover:text-ink-900'
+                    }`}
+                  >
+                    To Do
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.04, y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={() => {
+                      onUpdate(t.id, { status: 'in_progress', done: false, completedAt: null })
+                      onMenu(null)
+                    }}
+                    className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
+                      !t.done && t.status === 'in_progress'
+                        ? 'bg-amber-600/20 font-semibold text-amber-600 shadow-xs'
+                        : 'text-ink-500 hover:bg-amber-500/10 hover:text-amber-600'
+                    }`}
+                  >
+                    In Progress
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.04, y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={() => {
+                      onUpdate(t.id, { status: 'done', done: true, completedAt: t.completedAt ?? Date.now() })
+                      onMenu(null)
+                    }}
+                    className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
+                      t.done || t.status === 'done'
+                        ? 'bg-pine-500/20 font-semibold text-pine-400 shadow-xs'
+                        : 'text-ink-500 hover:bg-pine-500/15 hover:text-pine-400'
+                    }`}
+                  >
+                    Done
+                  </motion.button>
+                </div>
+
+                <div className="mx-1.5 my-1.5 h-px bg-paper-200/60" />
+
+                {/* Priority */}
+                <div className="flex items-center justify-between px-2 py-1">
+                  <span className="text-micro font-semibold uppercase tracking-wider text-ink-400">
+                    Priority
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {PRIORITIES.map((p) => {
+                      const active = (t.priority ?? 'medium') === p.id
+                      return (
+                        <motion.button
+                          key={p.id}
+                          type="button"
+                          title={p.label}
+                          aria-label={`Priority ${p.label}`}
+                          whileHover={{ scale: 1.3 }}
+                          whileTap={{ scale: 0.88 }}
+                          transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                          onClick={() => {
+                            onUpdate(t.id, { priority: p.id })
+                            onMenu(null)
+                          }}
+                          className={`cursor-pointer rounded-full p-1.5 transition-colors ${
+                            active ? 'bg-paper-200 ring-1 ring-paper-300' : 'hover:bg-paper-200/80'
+                          }`}
+                        >
+                          <span className={`block size-2.5 rounded-full ${p.dot} shadow-xs transition-transform`} />
+                        </motion.button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="mx-1.5 my-1.5 h-px bg-paper-200/60" />
+
+                {/* Move to */}
+                <p className="px-2 pb-1 pt-0.5 text-micro font-semibold uppercase tracking-wider text-ink-400">
+                  Move to
+                </p>
+                <motion.button
+                  whileHover={{ x: 3 }}
+                  whileTap={{ scale: 0.98 }}
+                  transition={{ duration: 0.12 }}
+                  className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
+                    t.listId === null ? 'bg-paper-200 font-medium text-ink-900' : 'text-ink-600 hover:bg-paper-200/70 hover:text-ink-900'
+                  }`}
+                  onClick={() => {
+                    onMove(t.id, null)
+                    onMenu(null)
+                  }}
+                >
+                  <span className={`size-1.5 shrink-0 rounded-full transition-transform ${t.listId === null ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
+                  <span className="min-w-0 flex-1 truncate">Inbox</span>
+                </motion.button>
+
+                {collections.map((col) => (
+                  <motion.button
+                    key={col.id}
                     whileHover={{ x: 3 }}
                     whileTap={{ scale: 0.98 }}
                     transition={{ duration: 0.12 }}
                     className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
-                      t.listId === null ? 'bg-paper-200 font-medium text-ink-900' : 'text-ink-600 hover:bg-paper-200/70 hover:text-ink-900'
+                      t.listId === col.id ? 'bg-paper-200 font-medium text-ink-900' : 'text-ink-600 hover:bg-paper-200/70 hover:text-ink-900'
                     }`}
                     onClick={() => {
-                      onMove(t.id, null)
+                      onMove(t.id, col.id)
                       onMenu(null)
                     }}
                   >
-                    <span className={`size-1.5 shrink-0 rounded-full transition-transform ${t.listId === null ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-                    <span className="min-w-0 flex-1 truncate">Inbox</span>
+                    <span className={`size-1.5 shrink-0 rounded-full transition-transform ${t.listId === col.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
+                    <span className="min-w-0 flex-1 truncate">{col.name}</span>
                   </motion.button>
+                ))}
 
-                  {collections
-                    .filter((c) => c.kind === 'board')
-                    .map((b) => (
-                      <motion.button
-                        key={b.id}
-                        whileHover={{ x: 3 }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ duration: 0.12 }}
-                        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
-                          t.listId === b.id ? 'bg-paper-200 font-medium text-ink-900' : 'text-ink-600 hover:bg-paper-200/70 hover:text-ink-900'
-                        }`}
-                        onClick={() => {
-                          onMove(t.id, b.id)
-                          onMenu(null)
-                        }}
-                      >
-                        <span className={`size-1.5 shrink-0 rounded-full transition-transform ${t.listId === b.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-                        <span className="min-w-0 flex-1 truncate">{b.name}</span>
-                      </motion.button>
-                    ))}
+                <div className="mx-1.5 my-1.5 h-px bg-paper-200/60" />
 
-                  {collections
-                    .filter((c) => c.kind === 'list')
-                    .map((l) => (
-                      <motion.button
-                        key={l.id}
-                        whileHover={{ x: 3 }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ duration: 0.12 }}
-                        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
-                          t.listId === l.id ? 'bg-paper-200 font-medium text-ink-900' : 'text-ink-600 hover:bg-paper-200/70 hover:text-ink-900'
-                        }`}
-                        onClick={() => {
-                          onMove(t.id, l.id)
-                          onMenu(null)
-                        }}
-                      >
-                        <span className={`size-1.5 shrink-0 rounded-full transition-transform ${t.listId === l.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-                        <span className="min-w-0 flex-1 truncate">{l.name}</span>
-                      </motion.button>
-                    ))}
-
-                  <div className="mx-1.5 my-1.5 h-px bg-paper-200/60" />
-
-                  {/* Archive / Delete */}
-                  <div className="grid grid-cols-2 gap-1.5 px-0.5 pb-0.5">
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.04, y: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.12 }}
-                      onClick={() => {
-                        onArchive(t.id)
-                        onMenu(null)
-                      }}
-                      className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-ink-600 transition-colors hover:bg-paper-200 hover:text-ink-900"
-                    >
-                      <ArchiveIcon className="size-3.5" />
-                      Archive
-                    </motion.button>
-                    <motion.button
-                      type="button"
-                      whileHover={{ scale: 1.04, y: -1 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ duration: 0.12 }}
-                      onClick={() => {
-                        onDelete(t.id)
-                        onMenu(null)
-                      }}
-                      className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium text-terra-600 transition-colors hover:bg-terra-500/15"
-                    >
-                      <TrashIcon className="size-3.5" />
-                      Delete
-                    </motion.button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                {/* Delete */}
+                <div className="px-0.5 pb-0.5">
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.95 }}
+                    transition={{ duration: 0.12 }}
+                    onClick={() => {
+                      onDelete(t.id)
+                      onMenu(null)
+                    }}
+                    className="flex w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-small font-medium text-terra-600 transition-colors hover:bg-terra-500/15"
+                  >
+                    <TrashIcon className="size-3.5" />
+                    Delete
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </>
     )
   }
@@ -640,7 +568,7 @@ export default function BoardView({
               key={c.id}
               type="button"
               onClick={() => scrollToColumn(c.id)}
-              className={`relative flex-1 rounded-full px-2 py-1.5 text-[12px] font-medium transition-colors ${
+              className={`relative flex-1 rounded-full px-2 py-1.5 text-small font-medium transition-colors ${
                 isActive ? 'text-ink-900' : 'text-ink-400 hover:text-ink-700'
               }`}
             >
@@ -654,7 +582,7 @@ export default function BoardView({
               <span className="relative flex items-center justify-center gap-1.5">
                 <span className={`size-1.5 rounded-full ${c.dot}`} />
                 <span>{c.label}</span>
-                <span className="text-[11px] tabular-nums opacity-70">{count}</span>
+                <span className="text-caption tabular-nums opacity-70">{count}</span>
               </span>
             </button>
           )
@@ -692,10 +620,10 @@ export default function BoardView({
               <div className="mb-3 flex items-center justify-between px-1">
                 <div className="flex items-center gap-2">
                   <span className={`size-2 rounded-full ${col.dot}`} />
-                  <h3 className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-500">
+                  <h3 className="text-small font-semibold uppercase tracking-[0.08em] text-ink-500">
                     {col.label}
                   </h3>
-                  <span className="rounded-md bg-paper-100 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-ink-400">
+                  <span className="rounded-md bg-paper-100 px-1.5 py-0.5 text-caption font-medium tabular-nums text-ink-400">
                     {colTasks.length}
                   </span>
                 </div>
@@ -741,10 +669,9 @@ export default function BoardView({
                     <button
                       type="button"
                       onClick={() => setShowOlderDone((prev) => !prev)}
-                      className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-[11.5px] font-medium text-ink-400 transition-colors hover:bg-paper-100 hover:text-ink-700"
+                      className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-caption font-medium text-ink-400 transition-colors hover:bg-paper-100 hover:text-ink-700"
                     >
-                      <span className="flex items-center gap-1.5">
-                        <ArchiveIcon className="size-3.5" />
+                      <span>
                         Older completed ({olderTasks.length})
                       </span>
                       <ChevronIcon
@@ -769,16 +696,6 @@ export default function BoardView({
                             </div>
                           )
                         })}
-                        {onArchiveOldCompleted && (
-                          <button
-                            type="button"
-                            onClick={() => onArchiveOldCompleted(7)}
-                            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-paper-200/70 px-3 py-1.5 text-[12px] font-medium text-ink-400 transition-colors hover:border-pine-500/40 hover:bg-pine-50/20 hover:text-pine-400"
-                          >
-                            <ArchiveIcon className="size-3.5" />
-                            Archive older done tasks (&gt;7d)
-                          </button>
-                        )}
                       </div>
                     )}
                   </div>
@@ -791,7 +708,7 @@ export default function BoardView({
                   type="button"
                   whileTap={{ scale: 0.98 }}
                   onClick={() => onOpenCreateModal?.(board.id, col.id)}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-paper-200/70 py-6 text-[13px] font-medium text-ink-400 transition-colors hover:border-pine-500/40 hover:bg-pine-50/20 hover:text-pine-400"
+                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-paper-200/70 py-6 text-body font-medium text-ink-400 transition-colors hover:border-pine-500/40 hover:bg-pine-50/20 hover:text-pine-400"
                 >
                   <PlusIcon className="size-3.5" />
                   Add task
@@ -801,7 +718,7 @@ export default function BoardView({
                   type="button"
                   whileTap={{ scale: 0.98 }}
                   onClick={() => onOpenCreateModal?.(board.id, col.id)}
-                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-[12.5px] font-medium text-ink-400/80 transition-colors hover:bg-paper-100/60 hover:text-ink-700"
+                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-small font-medium text-ink-400/80 transition-colors hover:bg-paper-100/60 hover:text-ink-700"
                 >
                   <PlusIcon className="size-3.5" />
                   Add task
@@ -819,14 +736,11 @@ export default function BoardView({
             task={detailsTask}
             boardName={board.name}
             collections={collections}
+            weekStartsOn={weekStartsOn}
             onClose={() => setDetailsTaskId(null)}
             onUpdate={onUpdate}
             onDelete={() => {
               onDelete(detailsTask.id)
-              setDetailsTaskId(null)
-            }}
-            onArchive={() => {
-              onArchive(detailsTask.id)
               setDetailsTaskId(null)
             }}
             onMove={onMove}

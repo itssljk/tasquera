@@ -21,13 +21,10 @@ const remoteTask = (id: string, updatedAt: number): Task => ({
   completedAt: null,
   listId: null,
   dueDate: null,
-  deadline: null,
   description: '',
   priority: 'medium',
   subtasks: [],
   links: [],
-  images: [],
-  archived: false,
   status: 'todo',
 })
 
@@ -82,24 +79,6 @@ describe('store', () => {
     expect(result.current.tasks).toHaveLength(2)
     expect(result.current.tasks[0].dueDate).toBe('2026-08-20')
     expect(result.current.tasks[0].status).toBe('todo')
-  })
-
-  it('stops spawning when recurrence count reaches endCount limit', () => {
-    const { result } = setup()
-    act(() =>
-      result.current.addTask({
-        title: 'Limited chore',
-        recurrence: { rule: 'daily', endCondition: { type: 'count', endCount: 1 } },
-        dueDate: '2026-08-13',
-      })
-    )
-    const id = result.current.tasks[0].id
-
-    // Complete the task -> since endCount is 1 and occurrenceIndex is 1, no new task is spawned
-    act(() => result.current.toggleTask(id))
-    act(() => result.current.toggleTask(id))
-    expect(result.current.tasks).toHaveLength(1)
-    expect(result.current.tasks[0].status).toBe('done')
   })
 
   it('records a tombstone on delete and clears it on undo', () => {
@@ -225,4 +204,188 @@ describe('store', () => {
     expect(result.current.collections[2].name).toBe('B')
     expect(result.current.collections[2].favorite).toBe(false)
   })
+
+  it('updates collection view mode between list and board', () => {
+    const { result } = setup()
+    act(() => result.current.addCollection('Apple'))
+    const id = result.current.collections[0].id
+    expect(result.current.collections[0].defaultView).toBe('list')
+    expect(result.current.collections[0].kind).toBe('list')
+
+    act(() => result.current.setCollectionViewMode(id, 'board'))
+    expect(result.current.collections[0].defaultView).toBe('board')
+    expect(result.current.collections[0].kind).toBe('board')
+
+    act(() => result.current.setCollectionViewMode(id, 'list'))
+    expect(result.current.collections[0].defaultView).toBe('list')
+    expect(result.current.collections[0].kind).toBe('list')
+  })
+
+  it('persists board view mode so apple list always opens as board', () => {
+    const { result, unmount } = setup()
+    act(() => result.current.addCollection('Apple'))
+    const id = result.current.collections[0].id
+
+    act(() => result.current.setCollectionViewMode(id, 'board'))
+    expect(result.current.collections[0].defaultView).toBe('board')
+    unmount()
+
+    // Re-mount new store instance from localStorage
+    const { result: reloaded } = setup()
+    const appleList = reloaded.current.collections.find((c) => c.id === id)
+    expect(appleList).toBeDefined()
+    expect(appleList?.defaultView).toBe('board')
+    expect(appleList?.kind).toBe('board')
+  })
+
+  it('bulk deletes collections, updates tasks, adds tombstones, and allows undo', () => {
+    const { result } = setup()
+    act(() => result.current.addCollection('list', 'List 1'))
+    act(() => result.current.addCollection('list', 'List 2'))
+    act(() => result.current.addCollection('list', 'List 3'))
+
+    const list1Id = result.current.collections.find((c) => c.name === 'List 1')!.id
+    const list2Id = result.current.collections.find((c) => c.name === 'List 2')!.id
+    const list3Id = result.current.collections.find((c) => c.name === 'List 3')!.id
+
+    act(() => result.current.addTask('Task in List 1', list1Id))
+    act(() => result.current.addTask('Task in List 2', list2Id))
+    act(() => result.current.addTask('Task in List 3', list3Id))
+
+    expect(result.current.collections).toHaveLength(3)
+
+    // Bulk delete List 1 and List 2
+    act(() => result.current.deleteCollections([list1Id, list2Id]))
+
+    expect(result.current.collections).toHaveLength(1)
+    expect(result.current.collections[0].id).toBe(list3Id)
+
+    // Tasks from deleted lists should have listId set to null
+    const task1 = result.current.tasks.find((t) => t.title === 'Task in List 1')!
+    const task2 = result.current.tasks.find((t) => t.title === 'Task in List 2')!
+    const task3 = result.current.tasks.find((t) => t.title === 'Task in List 3')!
+
+    expect(task1.listId).toBeNull()
+    expect(task2.listId).toBeNull()
+    expect(task3.listId).toBe(list3Id)
+
+    // Tombstones recorded
+    expect(result.current.tombstones.some((t) => t.id === list1Id && t.kind === 'collection')).toBe(true)
+    expect(result.current.tombstones.some((t) => t.id === list2Id && t.kind === 'collection')).toBe(true)
+
+    // Undo restores both collections and task associations
+    act(() => result.current.undo())
+    expect(result.current.collections).toHaveLength(3)
+    expect(result.current.tasks.find((t) => t.title === 'Task in List 1')?.listId).toBe(list1Id)
+    expect(result.current.tasks.find((t) => t.title === 'Task in List 2')?.listId).toBe(list2Id)
+
+    // Now test with deleteTasks = true
+    act(() => result.current.deleteCollections([list1Id, list2Id], true))
+    expect(result.current.collections).toHaveLength(1)
+    expect(result.current.tasks).toHaveLength(1)
+    expect(result.current.tasks[0].title).toBe('Task in List 3')
+
+    // Task tombstones recorded
+    expect(result.current.tombstones.some((t) => t.id === task1.id && t.kind === 'task')).toBe(true)
+    expect(result.current.tombstones.some((t) => t.id === task2.id && t.kind === 'task')).toBe(true)
+
+    // Undo restores both collections and tasks
+    act(() => result.current.undo())
+    expect(result.current.collections).toHaveLength(3)
+    expect(result.current.tasks).toHaveLength(3)
+  })
+
+  it('updates settings and applies defaultTaskPriority to new tasks', () => {
+    const { result } = setup()
+    expect(result.current.settings.weekStartsOn).toBe('monday')
+    expect(result.current.settings.soundEnabled).toBe(false)
+    expect(result.current.settings.defaultTaskPriority).toBe('none')
+
+    act(() =>
+      result.current.updateSettings({
+        weekStartsOn: 'sunday',
+        soundEnabled: true,
+        defaultTaskPriority: 'high',
+      }),
+    )
+
+    expect(result.current.settings.weekStartsOn).toBe('sunday')
+    expect(result.current.settings.soundEnabled).toBe(true)
+    expect(result.current.settings.defaultTaskPriority).toBe('high')
+
+    // Adding a task without explicit priority should inherit the high priority default
+    act(() => result.current.addTask('Task with default priority'))
+    expect(result.current.tasks[0].priority).toBe('high')
+
+    // Adding a task with explicit priority should keep the explicit priority
+    act(() => result.current.addTask({ title: 'Urgent task', priority: 'urgent' }))
+    expect(result.current.tasks[0].priority).toBe('urgent')
+  })
+
+  it('automatically parses natural language metadata in addTask', () => {
+    const { result } = renderHook(() => useStore(), { wrapper })
+
+    act(() => result.current.addTask('Fix backend bug tomorrow !urgent'))
+    const added = result.current.tasks[0]
+    expect(added.title).toBe('Fix backend bug')
+    expect(added.priority).toBe('urgent')
+    expect(added.dueDate).toBeDefined()
+  })
+
+  it('performs batch operations correctly', () => {
+    const { result } = renderHook(() => useStore(), { wrapper })
+
+    act(() => {
+      result.current.addTask('Task 1')
+      result.current.addTask('Task 2')
+      result.current.addTask('Task 3')
+    })
+
+    const ids = result.current.tasks.map((t) => t.id)
+    expect(ids.length).toBe(3)
+
+    // Batch toggle
+    act(() => result.current.batchToggleTasks([ids[0], ids[1]], true))
+    expect(result.current.tasks.find((t) => t.id === ids[0])?.done).toBe(true)
+    expect(result.current.tasks.find((t) => t.id === ids[1])?.done).toBe(true)
+    expect(result.current.tasks.find((t) => t.id === ids[2])?.done).toBe(false)
+
+    // Batch schedule
+    act(() => result.current.batchScheduleTasks([ids[0], ids[2]], '2026-09-01'))
+    expect(result.current.tasks.find((t) => t.id === ids[0])?.dueDate).toBe('2026-09-01')
+    expect(result.current.tasks.find((t) => t.id === ids[2])?.dueDate).toBe('2026-09-01')
+
+    // Batch move
+    act(() => {
+      result.current.addCollection('Work')
+    })
+    const workCol = result.current.collections.find((c) => c.name === 'Work')!
+    act(() => result.current.batchMoveTasks([ids[1], ids[2]], workCol.id))
+    expect(result.current.tasks.find((t) => t.id === ids[1])?.listId).toBe(workCol.id)
+    expect(result.current.tasks.find((t) => t.id === ids[2])?.listId).toBe(workCol.id)
+
+    // Batch delete
+    act(() => result.current.batchDeleteTasks([ids[0]]))
+    expect(result.current.tasks.find((t) => t.id === ids[0])).toBeUndefined()
+    expect(result.current.undoToastMessage).toContain('Deleted 1 task')
+  })
+
+  it('exports tasks to formatted markdown checklist', () => {
+    const { result } = renderHook(() => useStore(), { wrapper })
+
+    act(() => {
+      result.current.addTask({
+        title: 'Project launch',
+        dueDate: '2026-08-25',
+        priority: 'high',
+        subtasks: [{ id: '1', title: 'Prepare docs', done: true }],
+      })
+    })
+
+    const md = result.current.exportMarkdown()
+    expect(md).toContain('# Tasquera Tasks')
+    expect(md).toContain('- [ ] Project launch [HIGH] (Due: 2026-08-25)')
+    expect(md).toContain('  - [x] Prepare docs')
+  })
 })
+

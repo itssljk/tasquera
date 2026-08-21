@@ -39,7 +39,6 @@ function fieldRank(field: SearchMatch['field']): number {
 interface ParsedQuery {
   terms: string[]
   isDone?: boolean
-  isArchived?: boolean
   isInProgress?: boolean
   isRecurring?: boolean
   priority?: string
@@ -56,8 +55,6 @@ function parseQuery(rawQuery: string): ParsedQuery {
       parsed.isDone = true
     } else if (part === 'is:open' || part === 'is:todo' || part === 'is:active' || part === 'status:todo') {
       parsed.isDone = false
-    } else if (part === 'is:archived' || part === 'status:archived') {
-      parsed.isArchived = true
     } else if (part === 'is:in_progress' || part === 'status:in_progress') {
       parsed.isInProgress = true
     } else if (part === 'is:recurring' || part === 'is:repeating') {
@@ -82,8 +79,7 @@ function parseQuery(rawQuery: string): ParsedQuery {
 export function searchTasks(
   tasks: Task[],
   collections: Collection[],
-  query: string,
-  options?: SearchOptions
+  query: string
 ): SearchResult[] {
   const q = query.trim()
   if (!q) return []
@@ -91,12 +87,7 @@ export function searchTasks(
   const parsed = parseQuery(q)
   const results: SearchResult[] = []
 
-  const wantArchived = parsed.isArchived === true || options?.includeArchived === true
-
   for (const t of tasks) {
-    if (t.archived && !wantArchived) continue
-    if (!t.archived && parsed.isArchived === true) continue
-
     if (parsed.isDone !== undefined && t.done !== parsed.isDone) continue
     if (parsed.isInProgress && t.status !== 'in_progress') continue
     if (parsed.isRecurring && !t.recurrence) continue

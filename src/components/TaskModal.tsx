@@ -1,23 +1,25 @@
 import { useEffect, useState } from 'react'
-import type { ChangeEvent, FormEvent } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import type { FormEvent } from 'react'
+import { motion, Reorder } from 'framer-motion'
 import type { Collection, PriorityLevel, Recurrence, Subtask, Task, TaskLink, TaskStatus } from '../types'
-import { putImage, resolveMany } from '../lib/attachments'
 import Dropdown from './Dropdown'
 import { DatePickerPanel, DatePickerTrigger } from './DatePicker'
 import RecurrencePicker from './RecurrencePicker'
 import { useIsDesktop } from '../lib/useMediaQuery'
+import { isMac } from '../lib/platform'
+import { parseTaskInput } from '../lib/nlp'
+import { formatDue } from '../lib/date'
 import {
   CheckCircleIcon,
   CheckIcon,
   CloseIcon,
   ExternalLinkIcon,
   FlagIcon,
-  ImageIcon,
+  GripVerticalIcon,
   InboxIcon,
   LinkIcon,
-  PaperclipIcon,
   PlusIcon,
+  PromoteIcon,
   SubtaskIcon,
   TrashIcon,
 } from './icons'
@@ -29,8 +31,11 @@ interface TaskModalProps {
   defaultStatus?: TaskStatus
   defaultDueDate?: string | null
   collections: Collection[]
+  layout?: 'centered' | 'drawer'
+  weekStartsOn?: 'monday' | 'sunday'
   onClose: () => void
   onSave: (taskData: Partial<Task> & { title: string }) => void
+  onPromoteSubtask?: (subtaskTitle: string, listId?: string | null) => void
 }
 
 const PRIORITIES: { id: PriorityLevel; label: string; text: string }[] = [
@@ -42,7 +47,7 @@ const PRIORITIES: { id: PriorityLevel; label: string; text: string }[] = [
 
 const toolbarIcon = 'size-3.5 shrink-0 text-ink-400'
 const insetInput =
-  'w-full rounded-lg bg-paper-50 px-3 py-2 text-[13.5px] text-ink-900 outline-none ring-2 ring-transparent transition-shadow duration-150 focus:ring-pine-500/25 placeholder:text-ink-400'
+  'w-full rounded-lg bg-paper-50 px-3 py-2 text-body text-ink-900 outline-none ring-2 ring-transparent transition-shadow duration-150 focus:ring-pine-500/25 placeholder:text-ink-400'
 
 export default function TaskModal(props: TaskModalProps) {
   const {
@@ -52,6 +57,8 @@ export default function TaskModal(props: TaskModalProps) {
     defaultStatus = 'todo',
     defaultDueDate = null,
     collections,
+    layout = 'centered',
+    weekStartsOn = 'monday',
     onClose,
     onSave,
   } = props
@@ -63,22 +70,15 @@ export default function TaskModal(props: TaskModalProps) {
   const [priority, setPriority] = useState<PriorityLevel>('medium')
   const [recurrence, setRecurrence] = useState<Recurrence | null>(null)
   const [dueDate, setDueDate] = useState<string>('')
-  const [deadline, setDeadline] = useState<string>('')
   const [subtasks, setSubtasks] = useState<Subtask[]>([])
   const [links, setLinks] = useState<TaskLink[]>([])
-  const [images, setImages] = useState<string[]>([])
-  const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
 
   // Temporary inputs
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [newLinkUrl, setNewLinkUrl] = useState('')
   const [newLinkTitle, setNewLinkTitle] = useState('')
   const [showAddLink, setShowAddLink] = useState(false)
-  const [newImageUrl, setNewImageUrl] = useState('')
-  const [showAddImage, setShowAddImage] = useState(false)
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
-  const [isDraggingOver, setIsDraggingOver] = useState(false)
-  const [scheduleOpen, setScheduleOpen] = useState<'due' | 'deadline' | null>(null)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
@@ -90,10 +90,8 @@ export default function TaskModal(props: TaskModalProps) {
         setPriority(taskToEdit.priority || 'medium')
         setRecurrence(taskToEdit.recurrence ?? null)
         setDueDate(taskToEdit.dueDate || '')
-        setDeadline(taskToEdit.deadline || '')
         setSubtasks(taskToEdit.subtasks || [])
         setLinks(taskToEdit.links || [])
-        setImages(taskToEdit.images || [])
       } else {
         setTitle('')
         setDescription('')
@@ -102,21 +100,14 @@ export default function TaskModal(props: TaskModalProps) {
         setPriority('medium')
         setRecurrence(null)
         setDueDate(defaultDueDate || '')
-        setDeadline('')
         setSubtasks([])
         setLinks([])
-        setImages([])
       }
       setNewSubtaskTitle('')
       setNewLinkUrl('')
       setNewLinkTitle('')
       setShowAddLink(false)
-      setNewImageUrl('')
-      setShowAddImage(false)
-      setPreviewImage(null)
-      setIsDraggingOver(false)
-      setScheduleOpen(null)
-      void resolveMany(taskToEdit?.images ?? []).then(setImageUrls)
+      setScheduleOpen(false)
     }
   }, [isOpen, taskToEdit, defaultListId, defaultStatus, defaultDueDate])
 
@@ -127,33 +118,41 @@ export default function TaskModal(props: TaskModalProps) {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        setScheduleOpen(null)
+        setScheduleOpen(false)
       }
     }
     document.addEventListener('keydown', onKeyDown, true)
     return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [scheduleOpen])
 
-  if (!isOpen) return null
+  const nlpPreview = (() => {
+    if (!title.trim() || taskToEdit) return null
+    const parsed = parseTaskInput(title)
+    if (parsed.dueDate || parsed.priority) return parsed
+    return null
+  })()
 
   const handleFormSubmit = (e?: FormEvent) => {
     if (e) e.preventDefault()
     const trimmedTitle = title.trim()
     if (!trimmedTitle) return
 
+    const parsed = parseTaskInput(trimmedTitle)
+    const finalTitle = parsed.title || trimmedTitle
+    const finalDueDate = parsed.dueDate || (dueDate || null)
+    const finalPriority = (priority !== 'medium' && priority) ? priority : (parsed.priority || priority)
+
     onSave({
-      title: trimmedTitle,
+      title: finalTitle,
       description: description.trim(),
       listId: listId || null,
       status,
       done: status === 'done',
-      priority,
+      priority: finalPriority,
       recurrence,
-      dueDate: dueDate || null,
-      deadline: deadline || null,
+      dueDate: finalDueDate,
       subtasks,
       links,
-      images,
     })
     onClose()
   }
@@ -162,7 +161,7 @@ export default function TaskModal(props: TaskModalProps) {
     if (e.key === 'Escape') {
       if (scheduleOpen) {
         // Escape collapses the inline calendar before closing the modal
-        setScheduleOpen(null)
+        setScheduleOpen(false)
       } else {
         onClose()
       }
@@ -205,6 +204,12 @@ export default function TaskModal(props: TaskModalProps) {
     updateSubtasksWithAutoStatus(updated)
   }
 
+  const promoteSubtask = (s: Subtask) => {
+    removeSubtask(s.id)
+    props.onPromoteSubtask?.(s.title, listId)
+  }
+
+
   // Link handlers
   const addLink = () => {
     let url = newLinkUrl.trim()
@@ -227,149 +232,35 @@ export default function TaskModal(props: TaskModalProps) {
     setLinks((prev) => prev.filter((l) => l.id !== id))
   }
 
-  // Image handlers
-  const processImageFiles = (files: FileList | File[]) => {
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const result = event.target?.result as string
-        if (result) {
-          putImage(result).then((id) => {
-            setImages((prev) => [...prev, id])
-            setImageUrls((prev) => ({ ...prev, [id]: result }))
-          })
-        }
-      }
-      reader.readAsDataURL(file)
-    })
-  }
-
-  const addImageUrl = () => {
-    const url = newImageUrl.trim()
-    if (!url) return
-    setImages((prev) => [...prev, url])
-    setImageUrls((prev) => ({ ...prev, [url]: url }))
-    setNewImageUrl('')
-    setShowAddImage(false)
-  }
-
-  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-    processImageFiles(files)
-    e.target.value = ''
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.dataTransfer.types.includes('Files')) {
-      setIsDraggingOver(true)
-    }
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return
-    setIsDraggingOver(false)
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setIsDraggingOver(false)
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      processImageFiles(e.dataTransfer.files)
-    }
-  }
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    if (e.clipboardData.files && e.clipboardData.files.length > 0) {
-      const imageFiles = Array.from(e.clipboardData.files).filter((file) => file.type.startsWith('image/'))
-      if (imageFiles.length > 0) {
-        e.preventDefault()
-        processImageFiles(imageFiles)
-      }
-    }
-  }
-
-  const removeImage = (index: number) => {
-    // Removal is deferred: the store diffs old vs. new on save, so cancelling
-    // the edit leaves the attachment intact.
-    const ref = images[index]
-    setImages((prev) => prev.filter((_, i) => i !== index))
-    setImageUrls((prev) => {
-      const next = { ...prev }
-      delete next[ref]
-      return next
-    })
-  }
-
   const isDesktop = useIsDesktop()
   const doneSubtasksCount = subtasks.filter((s) => s.done).length
   const showLinks = links.length > 0 || showAddLink
-  const showImages = images.length > 0 || showAddImage
   const priorityStyle = PRIORITIES.find((p) => p.id === priority) ?? PRIORITIES[1]
+  const isCentered = isDesktop && layout === 'centered'
 
-  const selectedCollection = collections.find((c) => c.id === listId)
-  const isBoard = selectedCollection?.kind === 'board'
-
-  return (
+  const modalBody = (
     <>
-      <motion.div
-        key="taskmodal-backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-50 bg-[#0c0b0a]/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      {/* Mobile grab handle */}
+      <div className="flex w-full justify-center pt-2.5 pb-1 md:hidden">
+        <div className="h-1 w-10 rounded-full bg-ink-300/50" />
+      </div>
 
-      <motion.div
-        key="taskmodal-panel"
-        initial={isDesktop ? { x: '100%' } : { y: '100%' }}
-        animate={isDesktop ? { x: 0 } : { y: 0 }}
-        exit={isDesktop ? { x: '100%' } : { y: '100%' }}
-        transition={{ type: 'spring', stiffness: 380, damping: 34 }}
-        onKeyDown={handleKeyDown}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onPaste={handlePaste}
-        role="dialog"
-        aria-modal="true"
-        aria-label={taskToEdit ? 'Edit task' : 'New task'}
-        className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
-          isDesktop
-            ? 'inset-y-0 right-0 w-full max-w-[560px] border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
-            : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)]'
-        }`}
-      >
-        {/* Mobile grab handle */}
-        <div className="flex w-full justify-center pt-2.5 pb-1 md:hidden">
-          <div className="h-1 w-10 rounded-full bg-ink-300/50" />
-        </div>
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-paper-200/60 px-6 sm:px-7 py-3 sm:py-3.5">
+        <span className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-500">
+          {taskToEdit ? 'Edit Task' : 'New Task'}
+        </span>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close modal"
+          className="rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900 cursor-pointer"
+        >
+          <CloseIcon className="size-[18px]" />
+        </button>
+      </div>
 
-        {/* Drawer Header */}
-        <div className="flex items-center justify-between border-b border-paper-200/60 px-6 sm:px-7 py-3 sm:py-3.5">
-          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-            {taskToEdit ? 'Edit Task' : 'New Task'}
-          </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close drawer"
-            className="rounded-lg p-1.5 text-ink-400 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900"
-          >
-            <CloseIcon className="size-[18px]" />
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 sm:px-7 py-5">
-
+      <div className="flex-1 overflow-y-auto px-6 sm:px-7 py-5">
           {/* Title */}
           <input
             autoFocus
@@ -377,8 +268,17 @@ export default function TaskModal(props: TaskModalProps) {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Task title…"
-            className="mt-4 w-full bg-transparent text-[24px] font-bold leading-tight tracking-tight text-ink-900 placeholder:text-ink-400 outline-none"
+            className="mt-4 w-full bg-transparent text-display font-bold leading-tight tracking-tight text-ink-900 placeholder:text-ink-400 outline-none"
           />
+
+          {nlpPreview && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-pine-500/10 px-2.5 py-1 text-caption font-medium text-pine-400">
+              <span className="text-pine-500 font-semibold">Auto-detected:</span>
+              {nlpPreview.dueDate && <span>Due {formatDue(nlpPreview.dueDate)}</span>}
+              {nlpPreview.dueDate && nlpPreview.priority && <span>•</span>}
+              {nlpPreview.priority && <span className="capitalize">{nlpPreview.priority} priority</span>}
+            </div>
+          )}
 
           {/* Description */}
           <textarea
@@ -386,35 +286,33 @@ export default function TaskModal(props: TaskModalProps) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add details, context, notes…"
-            className="mt-3 w-full resize-y bg-transparent text-[14.5px] leading-relaxed text-ink-700 placeholder:text-ink-400 outline-none min-h-[52px]"
+            className="mt-3 w-full resize-y bg-transparent text-body-lg leading-relaxed text-ink-700 placeholder:text-ink-400 outline-none min-h-[52px]"
           />
 
           {/* Metadata toolbar */}
           <div className="mt-5 h-px bg-paper-200/70" />
           <div className="mt-4 flex flex-wrap items-center gap-1">
-            {/* List / Board */}
+            {/* List */}
             <Dropdown<string>
               value={listId ?? ''}
               onChange={(v) => setListId(v || null)}
-              ariaLabel="List or board"
+              ariaLabel="List"
               icon={<InboxIcon className={toolbarIcon} />}
               options={[{ value: '', label: 'Inbox' }, ...collections.map((c) => ({ value: c.id, label: c.name }))]}
             />
 
-            {/* Status (Kanban boards only) */}
-            {isBoard && (
-              <Dropdown<TaskStatus>
-                value={status}
-                onChange={setStatus}
-                ariaLabel="Status"
-                icon={<CheckCircleIcon className={toolbarIcon} />}
-                options={[
-                  { value: 'todo', label: 'To do' },
-                  { value: 'in_progress', label: 'In progress' },
-                  { value: 'done', label: 'Done' },
-                ]}
-              />
-            )}
+            {/* Status */}
+            <Dropdown<TaskStatus>
+              value={status}
+              onChange={setStatus}
+              ariaLabel="Status"
+              icon={<CheckCircleIcon className={toolbarIcon} />}
+              options={[
+                { value: 'todo', label: 'To do' },
+                { value: 'in_progress', label: 'In progress' },
+                { value: 'done', label: 'Done' },
+              ]}
+            />
 
             {/* Priority */}
             <Dropdown<PriorityLevel>
@@ -430,44 +328,40 @@ export default function TaskModal(props: TaskModalProps) {
             <RecurrencePicker value={recurrence} onChange={setRecurrence} />
           </div>
 
-          {/* Schedule: due date & deadline chips */}
+          {/* Schedule: due date chip */}
           <div className="mt-2 flex flex-wrap items-center gap-1">
-            {/* Due date */}
             <DatePickerTrigger
-              mode="date"
               value={dueDate}
               onChange={setDueDate}
               accentColor="pine"
-              open={scheduleOpen === 'due'}
-              onToggle={() => setScheduleOpen((cur) => (cur === 'due' ? null : 'due'))}
-            />
-
-            {/* Deadline */}
-            <DatePickerTrigger
-              mode="datetime"
-              value={deadline}
-              onChange={setDeadline}
-              accentColor="amber"
-              open={scheduleOpen === 'deadline'}
-              onToggle={() => setScheduleOpen((cur) => (cur === 'deadline' ? null : 'deadline'))}
+              open={scheduleOpen}
+              onToggle={() => setScheduleOpen((cur) => !cur)}
             />
           </div>
 
-
           {/* Subtasks */}
           <div className="mt-7 space-y-2">
-            <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+            <span className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.12em] text-ink-500">
               <SubtaskIcon className="size-3.5 text-ink-400" />
               Subtasks {subtasks.length > 0 && `(${doneSubtasksCount}/${subtasks.length})`}
             </span>
 
             {subtasks.length > 0 && (
-              <div className="space-y-1">
+              <Reorder.Group
+                axis="y"
+                values={subtasks}
+                onReorder={updateSubtasksWithAutoStatus}
+                className="space-y-1"
+              >
                 {subtasks.map((s) => (
-                  <div
+                  <Reorder.Item
                     key={s.id}
-                    className="group flex items-center gap-2.5 rounded-xl px-2.5 py-1.5 transition-colors duration-150 hover:bg-paper-200/50"
+                    value={s}
+                    className="group flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors duration-150 hover:bg-paper-200/50"
                   >
+                    <span className="cursor-grab active:cursor-grabbing text-ink-400/50 hover:text-ink-400 opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      <GripVerticalIcon className="size-3.5" />
+                    </span>
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.88 }}
@@ -488,21 +382,34 @@ export default function TaskModal(props: TaskModalProps) {
                         const val = e.target.value
                         setSubtasks((prev) => prev.map((sub) => (sub.id === s.id ? { ...sub, title: val } : sub)))
                       }}
-                      className={`flex-1 bg-transparent text-[14px] outline-none transition-colors duration-150 ${
+                      className={`flex-1 bg-transparent text-body-lg outline-none transition-colors duration-150 ${
                         s.done ? 'line-through text-ink-400' : 'text-ink-900'
                       }`}
                     />
-                    <button
-                      type="button"
-                      onClick={() => removeSubtask(s.id)}
-                      aria-label={`Remove subtask “${s.title}”`}
-                      className="rounded-md p-1 text-ink-400 transition-all duration-150 hover:text-terra-600 hover:bg-paper-200/60 opacity-60 md:opacity-0 md:group-hover:opacity-100 cursor-pointer"
-                    >
-                      <TrashIcon className="size-3.5" />
-                    </button>
-                  </div>
+                    <div className="flex items-center gap-0.5 opacity-80 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                      {props.onPromoteSubtask && (
+                        <button
+                          type="button"
+                          onClick={() => promoteSubtask(s)}
+                          title="Promote to standalone task"
+                          aria-label={`Promote “${s.title}” to task`}
+                          className="rounded-md p-1 text-ink-400 transition-all duration-150 hover:text-pine-500 hover:bg-paper-200/60 cursor-pointer"
+                        >
+                          <PromoteIcon className="size-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeSubtask(s.id)}
+                        aria-label={`Remove subtask “${s.title}”`}
+                        className="rounded-md p-1 text-ink-400 transition-all duration-150 hover:text-terra-600 hover:bg-paper-200/60 cursor-pointer"
+                      >
+                        <TrashIcon className="size-3.5" />
+                      </button>
+                    </div>
+                  </Reorder.Item>
                 ))}
-              </div>
+              </Reorder.Group>
             )}
 
             <div className="flex items-center gap-1.5">
@@ -531,36 +438,17 @@ export default function TaskModal(props: TaskModalProps) {
             </div>
           </div>
 
-          {/* Add link / image affordances */}
-          {(!showLinks || !showImages) && (
+          {/* Add link affordance */}
+          {!showLinks && (
             <div className="mt-5 flex flex-wrap items-center gap-1.5">
-              {!showLinks && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddLink(true)}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900"
-                >
-                  <PlusIcon className="size-3.5 text-ink-400" />
-                  Add link
-                </button>
-              )}
-              {!showImages && (
-                <>
-                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900">
-                    <PaperclipIcon className="size-3.5 text-ink-400" />
-                    Upload image
-                    <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddImage(true)}
-                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900"
-                  >
-                    <LinkIcon className="size-3.5 text-ink-400" />
-                    Image URL
-                  </button>
-                </>
-              )}
+              <button
+                type="button"
+                onClick={() => setShowAddLink(true)}
+                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-body font-medium text-ink-600 transition-all duration-150 hover:bg-paper-200/80 hover:text-ink-900"
+              >
+                <PlusIcon className="size-3.5 text-ink-400" />
+                Add link
+              </button>
             </div>
           )}
 
@@ -568,7 +456,7 @@ export default function TaskModal(props: TaskModalProps) {
           {showLinks && (
             <div className="mt-6 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
+                <span className="flex items-center gap-1.5 text-caption font-semibold uppercase tracking-[0.12em] text-ink-500">
                   <LinkIcon className="size-3.5 text-ink-400" />
                   Links {links.length > 0 && `(${links.length})`}
                 </span>
@@ -589,7 +477,7 @@ export default function TaskModal(props: TaskModalProps) {
                   {links.map((l) => (
                     <div
                       key={l.id}
-                      className="group flex items-center gap-1.5 rounded-lg bg-paper-50 py-1.5 pl-3 pr-1.5 text-[13px]"
+                      className="group flex items-center gap-1.5 rounded-lg bg-paper-50 py-1.5 pl-3 pr-1.5 text-body"
                     >
                       <a
                         href={l.url}
@@ -635,14 +523,14 @@ export default function TaskModal(props: TaskModalProps) {
                     <button
                       type="button"
                       onClick={() => setShowAddLink(false)}
-                      className="px-2.5 py-1.5 text-[12.5px] text-ink-500 transition-colors duration-150 hover:text-ink-900"
+                      className="px-2.5 py-1.5 text-small text-ink-500 transition-colors duration-150 hover:text-ink-900"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
                       onClick={addLink}
-                      className="rounded-lg bg-pine-600 px-3 py-1.5 text-[12.5px] font-medium text-[#fbf9f5] transition-colors duration-150 hover:bg-pine-700"
+                      className="rounded-lg bg-pine-600 px-3 py-1.5 text-small font-medium text-[#fbf9f5] transition-colors duration-150 hover:bg-pine-700"
                     >
                       Add link
                     </button>
@@ -651,116 +539,14 @@ export default function TaskModal(props: TaskModalProps) {
               )}
             </div>
           )}
-
-          {/* Images Section */}
-          {showImages && (
-            <div className="mt-6 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-500">
-                  <ImageIcon className="size-3.5 text-ink-400" />
-                  Images & attachments {images.length > 0 && `(${images.length})`}
-                </span>
-                <div className="flex items-center gap-1">
-                  <label className="flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] text-ink-500 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900">
-                    <PaperclipIcon className="size-3.5" />
-                    Upload
-                    <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
-                  </label>
-                  {!showAddImage && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddImage(true)}
-                      className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] text-ink-500 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900"
-                    >
-                      <LinkIcon className="size-3.5" />
-                      URL
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {showAddImage && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="url"
-                    value={newImageUrl}
-                    onChange={(e) => setNewImageUrl(e.target.value)}
-                    placeholder="Paste image URL…"
-                    aria-label="Image URL"
-                    className={`${insetInput} flex-1`}
-                  />
-                  <button
-                    type="button"
-                    onClick={addImageUrl}
-                    className="rounded-lg bg-pine-600 px-3 py-2 text-[12.5px] font-medium text-[#fbf9f5] transition-colors duration-150 hover:bg-pine-700"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddImage(false)}
-                    className="px-2 py-2 text-[12.5px] text-ink-500 transition-colors duration-150 hover:text-ink-900"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-
-              {images.length > 0 ? (
-                <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4">
-                  {images.map((img, idx) => (
-                    <div key={idx} className="group relative aspect-square overflow-hidden rounded-xl bg-paper-50 shadow-xs border border-paper-200/60">
-                      <img
-                        src={imageUrls[img] ?? img}
-                        alt={`Attachment ${idx + 1}`}
-                        onClick={() => setPreviewImage(imageUrls[img] ?? img)}
-                        className="h-full w-full cursor-pointer object-cover transition-transform duration-200 hover:scale-105"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeImage(idx)}
-                        aria-label={`Remove attachment ${idx + 1}`}
-                        className="absolute right-1.5 top-1.5 rounded-full bg-paper-200/90 p-1 text-ink-900 transition-all duration-150 hover:bg-terra-600 hover:text-[#fbf9f5] md:opacity-0 md:group-hover:opacity-100"
-                      >
-                        <CloseIcon className="size-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <label className="flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-paper-300/80 p-4 cursor-pointer text-center transition-colors duration-150 hover:border-pine-400 hover:bg-paper-50">
-                  <PaperclipIcon className="size-5 text-ink-400" />
-                  <span className="text-[13px] font-medium text-ink-700">Click or drop images here to upload</span>
-                  <span className="text-[11.5px] text-ink-400">Supports PNG, JPG, WebP or paste from clipboard</span>
-                  <input type="file" accept="image/*" multiple onChange={handleFileUpload} className="hidden" />
-                </label>
-              )}
-            </div>
-          )}
         </div>
-
-        {/* Drag & drop overlay indicator */}
-        <AnimatePresence>
-          {isDraggingOver && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-paper-100/95 p-6 text-center backdrop-blur-xs border-2 border-dashed border-pine-500"
-            >
-              <PaperclipIcon className="mb-2 size-10 animate-bounce text-pine-600" />
-              <p className="text-[17px] font-bold text-ink-900">Drop images here</p>
-              <p className="text-[13px] text-ink-500">They will be automatically attached to this task</p>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* Sticky footer actions */}
         <div className="sticky bottom-0 z-20 flex items-center justify-between gap-4 border-t border-paper-200/70 bg-paper-100/95 px-6 sm:px-7 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:py-3.5 backdrop-blur-xs">
-          <span className="hidden text-[12px] text-ink-400 sm:block">
+          <span className="hidden text-small text-ink-400 sm:block">
             Press{' '}
-            <kbd className="rounded-md bg-paper-200 px-1.5 py-0.5 font-sans text-[10.5px] font-medium text-ink-500">
-              Ctrl+Enter
+            <kbd className="rounded-md bg-paper-200 px-1.5 py-0.5 font-sans text-micro font-medium text-ink-500">
+              {isMac() ? '⌘Enter' : 'Ctrl+Enter'}
             </kbd>{' '}
             to save
           </span>
@@ -768,67 +554,97 @@ export default function TaskModal(props: TaskModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl px-4 py-2 text-[14px] font-medium text-ink-600 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900 active:scale-98"
+              className="rounded-xl px-4 py-2 text-body-lg font-medium text-ink-600 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900 active:scale-98 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={() => handleFormSubmit()}
-              className="rounded-xl bg-pine-600 px-5 py-2 text-[14px] font-semibold text-[#fbf9f5] shadow-xs transition-all duration-150 hover:bg-pine-700 active:scale-95"
+              className="rounded-xl bg-pine-600 px-5 py-2 text-body-lg font-semibold text-[#fbf9f5] shadow-xs transition-all duration-150 hover:bg-pine-700 active:scale-95 cursor-pointer"
             >
               {taskToEdit ? 'Save Changes' : 'Create Task'}
             </button>
           </div>
         </div>
-      </motion.div>
+    </>
+  )
 
-      {/* Centered date / time picker dialog. Deliberately NOT wrapped in
-          AnimatePresence: closing this dialog always coincides with the
-          selected value changing in the same render, which could interrupt
-          the exit animation and leave an invisible full-screen layer stuck
-          in the DOM, blocking all interaction until reload. A plain CSS
-          entry animation avoids that class of bug entirely. */}
+  return (
+    <>
+      <motion.div
+        key="taskmodal-backdrop"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-50 bg-[#0c0b0a]/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+
+      {isCentered ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+          <motion.div
+            key="taskmodal-panel-centered"
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            onKeyDown={handleKeyDown}
+            role="dialog"
+            aria-modal="true"
+            aria-label={taskToEdit ? 'Edit task' : 'New task'}
+            className="pointer-events-auto relative flex flex-col w-full max-w-[580px] max-h-[85vh] rounded-2xl border border-paper-200/80 bg-paper-100 text-ink-900 shadow-[0_24px_64px_rgba(0,0,0,0.7)] overflow-hidden"
+          >
+            {modalBody}
+          </motion.div>
+        </div>
+      ) : (
+        <motion.div
+          key="taskmodal-panel-drawer"
+          initial={isDesktop ? { x: '100%' } : { y: '100%' }}
+          animate={isDesktop ? { x: 0 } : { y: 0 }}
+          exit={isDesktop ? { x: '100%' } : { y: '100%' }}
+          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          onKeyDown={handleKeyDown}
+          role="dialog"
+          aria-modal="true"
+          aria-label={taskToEdit ? 'Edit task' : 'New task'}
+          className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
+            isDesktop
+              ? 'inset-y-0 right-0 w-full max-w-[560px] border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
+              : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)]'
+          }`}
+        >
+          {modalBody}
+        </motion.div>
+      )}
+
+      {/* Centered date picker dialog */}
       {scheduleOpen && (
         <div
           className="fixed inset-0 z-[70] bg-[#0c0b0a]/60 backdrop-blur-sm"
-          onClick={() => setScheduleOpen(null)}
+          onClick={() => setScheduleOpen(false)}
         />
       )}
       {scheduleOpen && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={scheduleOpen === 'deadline' ? 'Set deadline' : 'Set due date'}
+          aria-label="Set due date"
           className="pointer-events-none fixed inset-0 z-[71] flex items-center justify-center p-4"
         >
           <div className="pointer-events-auto w-full max-w-[340px] animate-pop">
             <DatePickerPanel
-              key={scheduleOpen}
-              mode={scheduleOpen === 'deadline' ? 'datetime' : 'date'}
-              value={scheduleOpen === 'deadline' ? deadline : dueDate}
-              onChange={scheduleOpen === 'deadline' ? setDeadline : setDueDate}
-              accentColor={scheduleOpen === 'deadline' ? 'amber' : 'pine'}
-              onClose={() => setScheduleOpen(null)}
+              value={dueDate}
+              onChange={setDueDate}
+              accentColor="pine"
+              weekStartsOn={weekStartsOn}
+              onClose={() => setScheduleOpen(false)}
             />
           </div>
         </div>
       )}
-
-      {/* Lightbox image preview */}
-      <AnimatePresence>
-        {previewImage && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 backdrop-blur-lg p-4"
-            onClick={() => setPreviewImage(null)}
-          >
-            <img src={previewImage} alt="Enlarged preview" className="max-h-full max-w-full rounded-2xl object-contain shadow-2xl" />
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   )
 }

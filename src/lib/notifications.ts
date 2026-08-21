@@ -2,7 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { LocalNotifications } from '@capacitor/local-notifications'
 import { useEffect, useRef } from 'react'
 import type { AppSettings, Task } from '../types'
-import { formatDeadline, formatDue, isOverdue, parseISO, todayISO } from './date'
+import { formatDue, isOverdue, parseISO, todayISO } from './date'
 
 /**
  * Due-date & deadline reminders.
@@ -34,16 +34,11 @@ function reminderTimeOfDay(settings: AppSettings): string {
 
 /**
  * Epoch ms at which a task's reminder should fire, or null when the task has
- * no reminder (no date, done, or archived). Deadlines use their own time;
- * date-only due dates remind at `settings.notificationTime`.
+ * no reminder (no date or done).
+ * Date-only due dates remind at `settings.notificationTime`.
  */
 export function getReminderTime(task: Task, settings: AppSettings): number | null {
-  if (task.done || task.archived) return null
-  if (task.deadline) {
-    const t = new Date(task.deadline)
-    return isNaN(t.getTime()) ? null : t.getTime()
-  }
-  if (!task.dueDate) return null
+  if (task.done || !task.dueDate) return null
   const [h, m] = reminderTimeOfDay(settings).split(':').map(Number)
   if (isNaN(h) || isNaN(m)) return null
   const d = parseISO(task.dueDate)
@@ -53,7 +48,6 @@ export function getReminderTime(task: Task, settings: AppSettings): number | nul
 
 /** Stable per-reminder key so we never deliver the same reminder twice. */
 export function reminderKey(task: Task): string | null {
-  if (task.deadline) return `${task.id}:deadline:${task.deadline}`
   if (task.dueDate) return `${task.id}:due:${task.dueDate}`
   return null
 }
@@ -68,7 +62,6 @@ export function reminderId(task: Task): number {
 
 /** Short human-readable reason shown in the notification. */
 export function reminderBody(task: Task): string {
-  if (task.deadline) return `Deadline ${formatDeadline(task.deadline)}`
   const due = task.dueDate
   if (!due) return 'Reminder'
   if (due === todayISO()) return 'Due today'

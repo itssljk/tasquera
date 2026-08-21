@@ -3,22 +3,16 @@ import type { MouseEvent } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import type { Transition } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
-import { ImageThumbs } from './ImageThumbs'
-import { formatDate, formatDue, formatDeadline, isOverdue, isDeadlineOverdue } from '../lib/date'
+import { formatDate, formatDue, isOverdue } from '../lib/date'
 import { recurrenceLabel } from '../lib/recurrence'
 import type { Collection, Task } from '../types'
-import { triggerTaskConfetti } from '../lib/confetti'
 import {
-  ArchiveIcon,
   CalendarIcon,
   CheckIcon,
   ChevronIcon,
-  ClockIcon,
-  CloseIcon,
   EllipsisVerticalIcon,
   ExternalLinkIcon,
   FlagIcon,
-  ImageIcon,
   LinkIcon,
   NotesIcon,
   PencilIcon,
@@ -86,13 +80,14 @@ interface TaskRowProps {
   reorderable: boolean
   menuOpen: boolean
   meta?: string
+  selected?: boolean
+  isKeyboardFocused?: boolean
+  onSelectToggle?: (id: string, e: React.MouseEvent) => void
   onToggleMenu: (id: string | null) => void
   onToggle: (id: string) => void
   onDelete: (id: string) => void
   onUpdate: (id: string, patch: Partial<Task>) => void
   onMove: (id: string, listId: string | null) => void
-  onArchive: (id: string) => void
-  onRestore?: (id: string) => void
   onEditDetails?: (task: Task) => void
 }
 
@@ -104,21 +99,18 @@ export default function TaskRow(props: TaskRowProps) {
     reorderable,
     menuOpen,
     meta,
+    selected = false,
+    isKeyboardFocused = false,
+    onSelectToggle,
     onToggleMenu,
     onToggle,
     onDelete,
     onUpdate,
     onMove,
-    onArchive,
-    onRestore,
     onEditDetails,
   } = props
 
-  const boards = collections.filter((c) => c.kind === 'board')
-  const lists = collections.filter((c) => c.kind === 'list')
-
   const [expanded, setExpanded] = useState(false)
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
   const [showAddLink, setShowAddLink] = useState(false)
   const [newLinkUrl, setNewLinkUrl] = useState('')
@@ -144,9 +136,7 @@ export default function TaskRow(props: TaskRowProps) {
   }
 
   const handleToggleClick = (e: MouseEvent<HTMLButtonElement>) => {
-    if (task.status === 'in_progress') {
-      triggerTaskConfetti(e.currentTarget)
-    }
+    e.stopPropagation()
     onToggle(task.id)
   }
 
@@ -158,7 +148,6 @@ export default function TaskRow(props: TaskRowProps) {
     let newStatus = task.status
     if (allDone) {
       newStatus = 'done'
-      triggerTaskConfetti(e.currentTarget as HTMLElement)
     } else if (task.status === 'done' && !allDone) {
       newStatus = 'in_progress'
     }
@@ -182,8 +171,6 @@ export default function TaskRow(props: TaskRowProps) {
   const handleAddLinkInline = (e: React.FormEvent) => {
     e.preventDefault()
     if (!newLinkUrl.trim()) return
-    // Match the task modal: auto-prefix scheme-less URLs so the link actually
-    // opens, instead of resolving relative to the app origin.
     let url = newLinkUrl.trim()
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url
     const newLink = {
@@ -200,7 +187,6 @@ export default function TaskRow(props: TaskRowProps) {
   const subtasksCount = task.subtasks?.length ?? 0
   const subtasksDoneCount = task.subtasks?.filter((s) => s.done).length ?? 0
   const linksCount = task.links?.length ?? 0
-  const imagesCount = task.images?.length ?? 0
 
   const rowTransition: Transition = {
     layout: { type: 'spring', stiffness: 400, damping: 30 },
@@ -208,8 +194,14 @@ export default function TaskRow(props: TaskRowProps) {
     scale: { duration: 0.18 },
   }
 
-  const rowClass = `group relative flex flex-col rounded-xl px-3 py-2.5 transition-colors duration-150 ${
-    done ? '' : 'hover:bg-paper-100'
+  const rowClass = `group relative flex flex-col rounded-xl px-3 py-2.5 transition-all duration-150 ${
+    selected
+      ? 'bg-pine-500/10 ring-1 ring-pine-500/35 shadow-2xs'
+      : isKeyboardFocused
+        ? 'bg-paper-100 ring-1 ring-pine-500/50 shadow-2xs'
+        : done
+          ? ''
+          : 'hover:bg-paper-100'
   } ${reorderable && !done ? (isTouch ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing') : ''} ${
     menuOpen ? 'z-50' : 'z-0'
   } ${isDragging ? 'opacity-60' : ''}`
@@ -226,29 +218,50 @@ export default function TaskRow(props: TaskRowProps) {
   const rowContent = (
     <>
       <div className="flex items-start gap-3 w-full">
-        <button
-          type="button"
-          onClick={handleToggleClick}
-          aria-label={
-            done
-              ? `Move “${task.title}” back to To Do`
-              : task.status === 'in_progress'
-                ? `Move “${task.title}” to Done`
-                : `Move “${task.title}” to In Progress`
-          }
-          aria-pressed={done}
-          className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600"
-        >
-          <CheckCircle done={done} status={task.status} />
-        </button>
+        {onSelectToggle ? (
+          <button
+            type="button"
+            onClick={(e) => onSelectToggle(task.id, e)}
+            aria-label={selected ? `Deselect “${task.title}”` : `Select “${task.title}”`}
+            className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer"
+          >
+            <CheckCircle done={done} status={task.status} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleToggleClick}
+            aria-label={
+              done
+                ? `Move “${task.title}” back to To Do`
+                : task.status === 'in_progress'
+                  ? `Move “${task.title}” to Done`
+                  : `Move “${task.title}” to In Progress`
+            }
+            aria-pressed={done}
+            className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer"
+          >
+            <CheckCircle done={done} status={task.status} />
+          </button>
+        )}
 
-        <div className="min-w-0 flex-1 cursor-pointer" onClick={() => onEditDetails?.(task)}>
+        <div
+          className="min-w-0 flex-1 cursor-pointer"
+          onClick={(e) => {
+            if (e.shiftKey && onSelectToggle) {
+              e.preventDefault()
+              onSelectToggle(task.id, e)
+            } else {
+              onEditDetails?.(task)
+            }
+          }}
+        >
           <motion.p
             animate={{
               color: done ? 'var(--color-ink-500)' : 'var(--color-ink-900)',
             }}
             transition={{ duration: 0.2 }}
-            className="relative break-words text-[16.5px] leading-snug"
+            className="relative break-words text-title leading-snug sm:text-title-md"
           >
             {task.title}
             {done && (
@@ -263,7 +276,7 @@ export default function TaskRow(props: TaskRowProps) {
           </motion.p>
 
           {/* Metadata Indicators */}
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11.5px] font-medium text-ink-500">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption font-medium text-ink-500">
             {/* Priority */}
             {task.priority && task.priority !== 'medium' && (
               <span
@@ -293,14 +306,6 @@ export default function TaskRow(props: TaskRowProps) {
               <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
                 <CalendarIcon className="size-3 text-pine-600" />
                 <span>{formatDue(task.dueDate)}</span>
-              </span>
-            )}
-
-            {/* Deadline */}
-            {task.deadline && !done && (
-              <span className={`inline-flex items-center gap-1 font-medium ${isDeadlineOverdue(task.deadline) ? 'text-terra-600 font-semibold' : 'text-amber-600'}`}>
-                <ClockIcon className="size-3" />
-                <span>{formatDeadline(task.deadline)}</span>
               </span>
             )}
 
@@ -354,30 +359,13 @@ export default function TaskRow(props: TaskRowProps) {
               </button>
             )}
 
-            {/* Photos icon */}
-            {imagesCount > 0 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setExpanded(!expanded)
-                }}
-                title={`${imagesCount} photo${imagesCount > 1 ? 's' : ''}`}
-                aria-label={`${imagesCount} photo${imagesCount > 1 ? 's' : ''}`}
-                className="inline-flex items-center gap-1 text-ink-400 hover:text-slateblue-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
-              >
-                <ImageIcon className="size-3" />
-                <span className="tabular-nums">{imagesCount}</span>
-              </button>
-            )}
-
             {done && task.completedAt && <span className="text-ink-400">Completed {formatDate(task.completedAt)}</span>}
             {meta && <span className="text-ink-400">{meta}</span>}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {(task.description || subtasksCount > 0 || linksCount > 0 || imagesCount > 0) && (
+          {(task.description || subtasksCount > 0 || linksCount > 0) && (
             <motion.button
               type="button"
               whileHover={{ scale: 1.08 }}
@@ -413,7 +401,7 @@ export default function TaskRow(props: TaskRowProps) {
                   exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
                   transition={{ type: 'spring', stiffness: 450, damping: 26 }}
                   style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                  className={`absolute right-0 z-50 w-64 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-2 shadow-2xl backdrop-blur-md border border-paper-200/90 text-[13px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                  className={`absolute right-0 z-50 w-64 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-2 shadow-2xl backdrop-blur-md border border-paper-200/90 text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                     menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
                   }`}
                   role="menu"
@@ -439,7 +427,7 @@ export default function TaskRow(props: TaskRowProps) {
             )}
 
             {/* Status Switcher */}
-            <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Status</p>
+            <p className="px-2.5 pb-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Status</p>
             <div className="grid grid-cols-3 gap-1 px-1 pb-2">
               <motion.button
                 type="button"
@@ -450,7 +438,7 @@ export default function TaskRow(props: TaskRowProps) {
                   onUpdate(task.id, { status: 'todo', done: false, completedAt: null })
                   close()
                 }}
-                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11px] font-medium whitespace-nowrap text-center transition-all ${
+                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
                   !task.done && (task.status === 'todo' || !task.status)
                     ? 'bg-paper-200 text-ink-900 font-semibold shadow-2xs'
                     : 'text-ink-600 hover:bg-paper-100 hover:text-ink-900'
@@ -467,7 +455,7 @@ export default function TaskRow(props: TaskRowProps) {
                   onUpdate(task.id, { status: 'in_progress', done: false, completedAt: null })
                   close()
                 }}
-                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11px] font-medium whitespace-nowrap text-center transition-all ${
+                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
                   !task.done && task.status === 'in_progress'
                     ? 'bg-amber-600/20 text-amber-700 font-semibold shadow-2xs'
                     : 'text-ink-600 hover:bg-amber-500/10 hover:text-amber-600'
@@ -484,7 +472,7 @@ export default function TaskRow(props: TaskRowProps) {
                   onUpdate(task.id, { status: 'done', done: true, completedAt: task.completedAt ?? Date.now() })
                   close()
                 }}
-                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-[11px] font-medium whitespace-nowrap text-center transition-all ${
+                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
                   task.done || task.status === 'done'
                     ? 'bg-pine-500/20 text-pine-400 font-semibold shadow-2xs'
                     : 'text-ink-600 hover:bg-pine-500/15 hover:text-pine-400'
@@ -497,7 +485,7 @@ export default function TaskRow(props: TaskRowProps) {
             <div className="mx-2 my-1 h-px bg-paper-200/60" />
 
             {/* Priority Selector */}
-            <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Priority</p>
+            <p className="px-2.5 pb-1 pt-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Priority</p>
             <div className="grid grid-cols-4 gap-1 px-1 pb-2">
               {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
                 <motion.button
@@ -510,7 +498,7 @@ export default function TaskRow(props: TaskRowProps) {
                     onUpdate(task.id, { priority: p })
                     close()
                   }}
-                  className={`cursor-pointer capitalize rounded-lg px-1.5 py-1 text-[10.5px] font-medium transition-colors ${
+                  className={`cursor-pointer capitalize rounded-lg px-1.5 py-1 text-micro font-medium transition-colors ${
                     (task.priority ?? 'medium') === p
                       ? p === 'urgent'
                         ? 'bg-terra-600/20 text-terra-600 font-semibold'
@@ -530,12 +518,12 @@ export default function TaskRow(props: TaskRowProps) {
             <div className="mx-2 my-1 h-px bg-paper-200/60" />
 
             {/* Move To */}
-            <p className="px-2.5 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Move To</p>
+            <p className="px-2.5 pb-1 pt-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Move To</p>
             <motion.button
               whileHover={{ x: 3 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.12 }}
-              className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
+              className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small transition-colors ${
                 task.listId === null ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
               }`}
               onClick={() => {
@@ -547,96 +535,47 @@ export default function TaskRow(props: TaskRowProps) {
               <span className="min-w-0 flex-1 truncate">Inbox</span>
             </motion.button>
 
-            {boards.map((b) => (
+            {collections.map((col) => (
               <motion.button
-                key={b.id}
+                key={col.id}
                 whileHover={{ x: 3 }}
                 whileTap={{ scale: 0.98 }}
                 transition={{ duration: 0.12 }}
-                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
-                  task.listId === b.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
+                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small transition-colors ${
+                  task.listId === col.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
                 }`}
                 onClick={() => {
-                  onMove(task.id, b.id)
+                  onMove(task.id, col.id)
                   close()
                 }}
               >
-                <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === b.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-                <span className="min-w-0 flex-1 truncate">{b.name}</span>
-              </motion.button>
-            ))}
-
-            {lists.map((l) => (
-              <motion.button
-                key={l.id}
-                whileHover={{ x: 3 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.12 }}
-                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] transition-colors ${
-                  task.listId === l.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
-                }`}
-                onClick={() => {
-                  onMove(task.id, l.id)
-                  close()
-                }}
-              >
-                <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === l.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-                <span className="min-w-0 flex-1 truncate">{l.name}</span>
+                <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === col.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
+                <span className="min-w-0 flex-1 truncate">{col.name}</span>
               </motion.button>
             ))}
 
             <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
 
             {/* Due Date */}
-            <p className="px-2.5 pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-400">Due Date</p>
+            <p className="px-2.5 pb-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Due Date</p>
             <div className="px-1 pb-1">
               <input
                 type="date"
                 value={task.dueDate ?? ''}
                 onChange={(e) => onUpdate(task.id, { dueDate: e.target.value || null })}
                 aria-label="Set due date"
-                className="w-full rounded-lg bg-paper-100 px-2.5 py-1.5 text-[12px] text-ink-900 outline-none focus:ring-2 focus:ring-pine-500/25"
+                className="w-full rounded-lg bg-paper-100 px-2.5 py-1.5 text-small text-ink-900 outline-none focus:ring-2 focus:ring-pine-500/25"
               />
             </div>
 
             <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
 
-            {/* Archive / Delete */}
-            {task.archived ? (
-              <motion.button
-                whileHover={{ x: 2 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.12 }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-ink-700 transition-colors hover:bg-paper-100"
-                onClick={() => {
-                  onRestore?.(task.id)
-                  close()
-                }}
-              >
-                <ArchiveIcon className="size-3.5 text-ink-400" />
-                <span>Restore from archive</span>
-              </motion.button>
-            ) : (
-              <motion.button
-                whileHover={{ x: 2 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.12 }}
-                className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-ink-700 transition-colors hover:bg-paper-100"
-                onClick={() => {
-                  onArchive(task.id)
-                  close()
-                }}
-              >
-                <ArchiveIcon className="size-3.5 text-ink-400" />
-                <span>Archive</span>
-              </motion.button>
-            )}
-
+            {/* Delete */}
             <motion.button
               whileHover={{ x: 2 }}
               whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.12 }}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12.5px] text-terra-600 transition-colors hover:bg-terra-50"
+              className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small text-terra-600 transition-colors hover:bg-terra-50"
               onClick={() => {
                 onDelete(task.id)
                 close()
@@ -663,25 +602,25 @@ export default function TaskRow(props: TaskRowProps) {
         className="w-full overflow-hidden"
       >
         <div
-          className="mt-3 space-y-4 rounded-2xl bg-paper-100/90 p-4 md:p-5 text-[15px] shadow-sm"
+          className="mt-3 space-y-4 rounded-2xl bg-paper-100/90 p-4 md:p-5 text-body-lg shadow-sm"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Description */}
           {task.description && (
             <div className="space-y-1.5">
-              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">Description</span>
-              <p className="text-[15px] md:text-[15.5px] leading-relaxed text-ink-900 whitespace-pre-wrap selection:bg-pine-500/20">{task.description}</p>
+              <span className="text-caption font-semibold uppercase tracking-wider text-ink-500">Description</span>
+              <p className="text-body-lg leading-relaxed text-ink-900 whitespace-pre-wrap selection:bg-pine-500/20">{task.description}</p>
             </div>
           )}
 
           {/* Subtasks Section with Animated Progress Bar & Inline Adder */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">
+              <span className="text-caption font-semibold uppercase tracking-wider text-ink-500">
                 Subtasks {subtasksCount > 0 && `(${subtasksDoneCount}/${subtasksCount})`}
               </span>
               {subtasksCount > 0 && (
-                <span className="text-[12.5px] font-semibold text-pine-600">
+                <span className="text-small font-semibold text-pine-600">
                   {Math.round((subtasksDoneCount / subtasksCount) * 100)}%
                 </span>
               )}
@@ -716,7 +655,7 @@ export default function TaskRow(props: TaskRowProps) {
                     >
                       {s.done && <CheckIcon className="size-3" />}
                     </motion.button>
-                    <span className={`text-[15px] leading-snug ${s.done ? 'line-through text-ink-400' : 'text-ink-900'}`}>{s.title}</span>
+                    <span className={`text-body-lg leading-snug ${s.done ? 'line-through text-ink-400' : 'text-ink-900'}`}>{s.title}</span>
                   </div>
                 ))}
               </div>
@@ -730,7 +669,7 @@ export default function TaskRow(props: TaskRowProps) {
                 value={newSubtaskTitle}
                 onChange={(e) => setNewSubtaskTitle(e.target.value)}
                 placeholder="Add subtask (press Enter)…"
-                className="w-full bg-transparent text-[14.5px] text-ink-900 placeholder:text-ink-400 outline-none"
+                className="w-full bg-transparent text-body-lg text-ink-900 placeholder:text-ink-400 outline-none"
               />
             </form>
           </div>
@@ -738,12 +677,12 @@ export default function TaskRow(props: TaskRowProps) {
           {/* Links Section */}
           <div className="space-y-2.5 pt-1.5 border-t border-paper-200/40">
             <div className="flex items-center justify-between">
-              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">Links</span>
+              <span className="text-caption font-semibold uppercase tracking-wider text-ink-500">Links</span>
               {!showAddLink && (
                 <button
                   type="button"
                   onClick={() => setShowAddLink(true)}
-                  className="text-[12.5px] font-medium text-pine-500 hover:text-pine-400 inline-flex items-center gap-1 py-1 px-1.5 rounded-md hover:bg-paper-200/40 transition-colors"
+                  className="text-small font-medium text-pine-500 hover:text-pine-400 inline-flex items-center gap-1 py-1 px-1.5 rounded-md hover:bg-paper-200/40 transition-colors"
                 >
                   <PlusIcon className="size-3.5" />
                   <span>Add link</span>
@@ -760,7 +699,7 @@ export default function TaskRow(props: TaskRowProps) {
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={(e) => e.stopPropagation()}
-                    className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-paper-200/60 px-3 py-2 text-[13.5px] font-medium text-pine-500 hover:bg-pine-500/15 hover:text-pine-400 transition-colors shadow-2xs"
+                    className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-paper-200/60 px-3 py-2 text-body font-medium text-pine-500 hover:bg-pine-500/15 hover:text-pine-400 transition-colors shadow-2xs"
                   >
                     <ExternalLinkIcon className="size-3.5" />
                     <span>{l.title || l.url}</span>
@@ -777,7 +716,7 @@ export default function TaskRow(props: TaskRowProps) {
                   onChange={(e) => setNewLinkUrl(e.target.value)}
                   placeholder="https://..."
                   autoFocus
-                  className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-[13.5px] text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
+                  className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-body text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
                 />
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
                   <input
@@ -785,20 +724,20 @@ export default function TaskRow(props: TaskRowProps) {
                     value={newLinkTitle}
                     onChange={(e) => setNewLinkTitle(e.target.value)}
                     placeholder="Title (optional)"
-                    className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-[13.5px] text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
+                    className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-body text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
                   />
                   <div className="flex items-center justify-end gap-2 shrink-0">
                     <button
                       type="button"
                       onClick={() => setShowAddLink(false)}
-                      className="px-3 py-1.5 rounded-lg text-[12.5px] text-ink-500 hover:text-ink-900 hover:bg-paper-200 transition-colors"
+                      className="px-3 py-1.5 rounded-lg text-small text-ink-500 hover:text-ink-900 hover:bg-paper-200 transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={!newLinkUrl.trim()}
-                      className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-[12.5px] font-medium text-paper-50 disabled:opacity-50 hover:bg-pine-500 transition-colors"
+                      className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-small font-medium text-paper-50 disabled:opacity-50 hover:bg-pine-500 transition-colors"
                     >
                       Add
                     </button>
@@ -808,21 +747,13 @@ export default function TaskRow(props: TaskRowProps) {
             )}
           </div>
 
-          {/* Images Section */}
-          {imagesCount > 0 && (
-            <div className="space-y-2 pt-1.5 border-t border-paper-200/40">
-              <span className="text-[11.5px] font-semibold uppercase tracking-wider text-ink-500">Images</span>
-              <ImageThumbs refs={task.images ?? []} onPreview={setLightboxImage} imgClassName="size-20 rounded-xl" />
-            </div>
-          )}
-
           {/* Footer Actions */}
           <div className="pt-2 border-t border-paper-200/40 flex items-center justify-between">
             {onEditDetails && (
               <button
                 type="button"
                 onClick={() => onEditDetails(task)}
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-500 hover:text-pine-500 transition-colors py-1"
+                className="inline-flex items-center gap-1.5 text-body font-medium text-ink-500 hover:text-pine-500 transition-colors py-1"
               >
                 <PencilIcon className="size-3.5" />
                 <span>Edit full details...</span>
@@ -831,7 +762,7 @@ export default function TaskRow(props: TaskRowProps) {
             <button
               type="button"
               onClick={() => setExpanded(false)}
-              className="text-[12px] text-ink-400 hover:text-ink-600 transition-colors ml-auto py-1"
+              className="text-small text-ink-400 hover:text-ink-600 transition-colors ml-auto py-1"
             >
               Collapse
             </button>
@@ -840,35 +771,6 @@ export default function TaskRow(props: TaskRowProps) {
       </motion.div>
     )}
   </AnimatePresence>
-
-      <AnimatePresence>
-        {lightboxImage && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-            onClick={(e) => {
-              e.stopPropagation()
-              setLightboxImage(null)
-            }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="relative max-w-4xl max-h-[90vh]"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                onClick={() => setLightboxImage(null)}
-                className="absolute -top-3 -right-3 rounded-full bg-paper-100 p-2 text-ink-900 shadow-md hover:bg-paper-200"
-              >
-                <CloseIcon className="size-4" />
-              </button>
-              <img src={lightboxImage} alt="Attachment preview" className="max-h-[85vh] max-w-full rounded-xl object-contain shadow-2xl" />
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </>
   )
 

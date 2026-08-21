@@ -1,13 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   addDaysISO,
-  formatDeadline,
   formatDue,
   getEffectiveDate,
   getNextMondayISO,
   isOverdue,
   parseISO,
-  parseISODatetime,
   toISODate,
   todayISO,
 } from './date'
@@ -54,38 +52,12 @@ describe('isOverdue', () => {
 })
 
 describe('getEffectiveDate', () => {
-  it('prefers dueDate over deadline', () => {
-    expect(getEffectiveDate({ dueDate: '2026-08-13', deadline: '2026-08-14T10:00' })).toBe('2026-08-13')
+  it('returns dueDate if present', () => {
+    expect(getEffectiveDate({ dueDate: '2026-08-13' })).toBe('2026-08-13')
   })
 
-  it('falls back to the deadline date part', () => {
-    expect(getEffectiveDate({ deadline: '2026-08-14T10:00' })).toBe('2026-08-14')
-  })
-
-  it('returns null when no dates are set', () => {
+  it('returns null when no dueDate is set', () => {
     expect(getEffectiveDate({})).toBeNull()
-  })
-})
-
-describe('formatDeadline', () => {
-  it('includes the formatted time for a datetime', () => {
-    expect(formatDeadline('2030-01-02T17:00')).toContain('5:00 PM')
-  })
-
-  it('handles empty input', () => {
-    expect(formatDeadline('')).toBe('')
-  })
-})
-
-describe('parseISODatetime', () => {
-  it('splits date and time', () => {
-    expect(parseISODatetime('2026-08-13T17:30')).toEqual({ date: '2026-08-13', time: '17:30' })
-  })
-
-  it('falls back for empty input', () => {
-    const r = parseISODatetime('')
-    expect(r.date).toBe(todayISO())
-    expect(r.time).toBe('09:00')
   })
 })
 

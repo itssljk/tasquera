@@ -7,12 +7,17 @@
   --color-paper-100: #1a1816;
   --color-paper-200: #25221e;
   --color-paper-300: #36312a;
+  --color-paper-400: #4b443b;
 
   --color-ink-900: #f3eee7;
+  --color-ink-800: #e6ded0;
   --color-ink-700: #cfc6b8;
+  --color-ink-600: #b3a996;
   --color-ink-500: #93897b;
   --color-ink-400: #685f52;
+  --color-ink-300: #4f483e;
 
+  --color-pine-800: #123726;
   --color-pine-700: #1b5239;
   --color-pine-600: #2b8256;
   --color-pine-500: #38a16c;
@@ -22,24 +27,85 @@
   --color-pine-50: #132b20;
 
   --color-terra-600: #d95a3f;
+  --color-terra-500: #e0654a;
+  --color-terra-200: #eec0b2;
   --color-terra-50: #331713;
+  --color-terra-700: #c04f37;
+
   --color-amber-600: #d99b26;
+  --color-amber-500: #e3ab3c;
+  --color-amber-700: #c08420;
+
   --color-slateblue-600: #4e93b8;
+  --color-slateblue-500: #63a3c6;
+  --color-slateblue-400: #7fb6d4;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Type scale — one size per step, no arbitrary px values in components */
+  --text-micro: 10px;
+  --text-caption: 11.5px;
+  --text-small: 12.5px;
+  --text-body: 13.5px;
+  --text-body-lg: 14.5px;
+  --text-title: 16.5px;
+  --text-title-md: 17.5px;
+  --text-brand: 19px;
+  --text-title-lg: 22px;
+  --text-display: 24px;
+  --text-display-md: 28px;
+  --text-display-lg: 32px;
 }
 
 :root {
   color-scheme: dark;
 }
 
+html[data-theme="light"],
+.theme-light {
+  color-scheme: light;
+  --color-paper-50: #fbf9f5;
+  --color-paper-100: #f3eee6;
+  --color-paper-200: #e7dfd2;
+  --color-paper-300: #d6ccbc;
+  --color-paper-400: #b8ab96;
+
+  --color-ink-900: #1a1816;
+  --color-ink-800: #2c2824;
+  --color-ink-700: #4b443b;
+  --color-ink-600: #685f52;
+  --color-ink-500: #74695c;
+  --color-ink-400: #988c7d;
+  --color-ink-300: #cfc6b8;
+
+  --color-pine-800: #0d281c;
+  --color-pine-700: #133a28;
+  --color-pine-600: #1b5239;
+  --color-pine-500: #26774e;
+  --color-pine-400: #349b65;
+  --color-pine-300: #4ec484;
+  --color-pine-100: #e0ece5;
+  --color-pine-50: #edf5f1;
+
+  --color-terra-600: #b9381e;
+  --color-terra-50: #faebe8;
+
+  --color-amber-600: #9d5d05;
+  --color-slateblue-600: #2a6b8f;
+}
+
 @layer base {
-  :root,
-  html,
-  body {
-    color-scheme: dark;
+  :root {
+    --scrollbar-thumb: rgba(243, 238, 231, 0.18);
+    --scrollbar-thumb-hover: rgba(243, 238, 231, 0.35);
+  }
+
+  html[data-theme="light"],
+  .theme-light {
+    --scrollbar-thumb: rgba(26, 24, 22, 0.18);
+    --scrollbar-thumb-hover: rgba(26, 24, 22, 0.35);
   }
 
   html {
@@ -49,7 +115,7 @@
   }
 
   body {
-    @apply bg-paper-50 font-sans text-ink-900;
+    @apply bg-paper-50 font-sans text-ink-900 transition-colors duration-200;
   }
 
   ::selection {
@@ -57,14 +123,14 @@
   }
 }
 
-/* Universal sleek dark scrollbar for all containers. Kept in the base layer so
+/* Universal sleek scrollbar for all containers. Kept in the base layer so
    per-container scrollbar-hiding utilities can still override it. */
 @layer base {
   *,
   *::before,
   *::after {
     scrollbar-width: thin;
-    scrollbar-color: rgba(243, 238, 231, 0.18) transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 
   ::-webkit-scrollbar {
@@ -77,12 +143,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(243, 238, 231, 0.18);
+    background: var(--scrollbar-thumb);
     border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(243, 238, 231, 0.35);
+    background: var(--scrollbar-thumb-hover);
   }
 
   ::-webkit-scrollbar-corner {
@@ -90,12 +156,18 @@
   }
 }
 
-  /* Dark theme for native date/time pickers */
-  input[type="date"]::-webkit-calendar-picker-indicator,
-  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
-    filter: invert(0.8) sepia(0.2) saturate(0.5) hue-rotate(80deg);
-    cursor: pointer;
-  }
+/* Native date/time picker indicators adapted for dark and light themes */
+html:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator,
+html:not([data-theme="light"]) input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.8) sepia(0.2) saturate(0.5) hue-rotate(80deg);
+  cursor: pointer;
+}
+
+html[data-theme="light"] input[type="date"]::-webkit-calendar-picker-indicator,
+html[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: opacity(0.65);
+  cursor: pointer;
+}
 
 @keyframes rise-in {
   from {

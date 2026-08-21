@@ -55,8 +55,10 @@ export function MinusIcon(props: IconProps) {
 export function TrashIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <path d="M4.4 6.4h11.2M8.4 6.4V4.9c0-.5.4-.9.9-.9h1.4c.5 0 .9.4.9.9v1.5" />
-      <path d="M6.4 6.4l.6 8.6c0 .6.5 1 1.1 1h3.8c.6 0 1.1-.4 1.1-1l.6-8.6M8.4 9.2v4.4M11.6 9.2v4.4" />
+      <path d="M3.5 5.5h13" />
+      <path d="M5.5 5.5l.7 10.2a1.5 1.5 0 0 0 1.5 1.4h4.6a1.5 1.5 0 0 0 1.5-1.4l.7-10.2" />
+      <path d="M7.5 5.5V3.8a1.3 1.3 0 0 1 1.3-1.3h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7" />
+      <path d="M8.2 9v5.5M11.8 9v5.5" />
     </svg>
   )
 }
@@ -118,8 +120,8 @@ export function MenuIcon(props: IconProps) {
 export function InboxIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <rect x="3.5" y="4.5" width="13" height="11" rx="2" />
-      <path d="M3.5 9h4l1.2 1.8h2.6L12.5 9h4" />
+      <path d="M4.5 4.5h11l2.5 5.5v5.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 2 15.5V10z" />
+      <path d="M2 10h4.5l1.5 2.5h4L13.5 10H18" />
     </svg>
   )
 }
@@ -146,9 +148,9 @@ export function UpcomingIcon(props: IconProps) {
 export function CalendarIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <rect x="3.5" y="4.5" width="13" height="12" rx="2" />
-      <path d="M3.5 8.5h13M7 3v3M13 3v3" />
-      <path d="M7.2 11.8h1.6M11.2 11.8h1.6M7.2 13.8h1.6M11.2 13.8h1.6" />
+      <rect x="3.5" y="4" width="13" height="13" rx="2" />
+      <path d="M3.5 8.5h13M7 2.5v3M13 2.5v3" />
+      <path d="M7.5 12h.01M10 12h.01M12.5 12h.01M7.5 14.5h.01M10 14.5h.01" />
     </svg>
   )
 }
@@ -165,22 +167,18 @@ export function CheckCircleIcon(props: IconProps) {
 export function ArchiveIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <rect x="3.5" y="3.8" width="13" height="3.6" rx="1.1" />
-      <path d="M5.2 7.4v7.3a1.4 1.4 0 0 0 1.4 1.4h6.8a1.4 1.4 0 0 0 1.4-1.4V7.4" />
-      <path d="M8.6 11h2.8" />
+      <rect x="3" y="3.5" width="14" height="4" rx="1" />
+      <path d="M4.5 7.5v7.5a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5V7.5" />
+      <path d="M8.5 11.5h3" />
     </svg>
   )
 }
 
 export function SettingsIcon(props: IconProps) {
   return (
-    <svg {...strokeProps} strokeWidth={1.7} {...props}>
-      <path d="M3.5 5.75h13M3.5 10h13M3.5 14.25h13" />
-      <g fill="currentColor" stroke="none">
-        <circle cx="9.4" cy="5.75" r="1.55" />
-        <circle cx="6.2" cy="10" r="1.55" />
-        <circle cx="12.8" cy="14.25" r="1.55" />
-      </g>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.1} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   )
 }
@@ -196,7 +194,7 @@ export function FlagIcon(props: IconProps) {
 export function SubtaskIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <path d="M4.5 4.5h11M4.5 9.5h11M7.5 14.5h8M4.5 13.5v2" />
+      <path d="M4 5h12M4 9.5h12M4 9.5v3.5a1.5 1.5 0 0 0 1.5 1.5h10.5" />
     </svg>
   )
 }
@@ -204,7 +202,8 @@ export function SubtaskIcon(props: IconProps) {
 export function LinkIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <path d="M8.5 11.5l3-3m-1.5-2.5l1.8-1.8a2.5 2.5 0 0 1 3.5 3.5l-1.8 1.8m-4.5 1.5l-1.8 1.8a2.5 2.5 0 0 1-3.5-3.5l1.8-1.8" />
+      <path d="M8.5 11.5a4 4 0 0 0 5.66.4l2.34-2.34a4 4 0 0 0-5.66-5.66l-1.34 1.34" />
+      <path d="M11.5 8.5a4 4 0 0 0-5.66-.4L3.5 10.44a4 4 0 0 0 5.66 5.66l1.34-1.34" />
     </svg>
   )
 }
@@ -223,7 +222,7 @@ export function ClockIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
       <circle cx="10" cy="10" r="6.5" />
-      <path d="M10 6.5v3.8l2.5 1.5" />
+      <path d="M10 6.5V10l2.5 1.5" />
     </svg>
   )
 }
@@ -231,10 +230,10 @@ export function ClockIcon(props: IconProps) {
 export function RepeatIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <path d="M16.5 3.5l2 2-2 2" />
-      <path d="M4.5 6.5h9a2.5 2.5 0 0 1 2.5 2.5v1.5" />
-      <path d="M3.5 16.5l-2-2 2-2" />
-      <path d="M15.5 13.5h-9a2.5 2.5 0 0 1-2.5-2.5V9.5" />
+      <path d="m14 2.5 3.5 3-3.5 3" />
+      <path d="M3 9.5V8a2.5 2.5 0 0 1 2.5-2.5h11.5" />
+      <path d="m6 17.5-3.5-3 3.5-3" />
+      <path d="M17 10.5V12a2.5 2.5 0 0 1-2.5 2.5H3" />
     </svg>
   )
 }
@@ -266,7 +265,9 @@ export function PaperclipIcon(props: IconProps) {
 export function NotesIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <path d="M4.5 5.5h11M4.5 9.5h11M4.5 13.5h7" />
+      <path d="M4.5 3.5h7l4 4V16a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 4.5 16V3.5z" />
+      <path d="M11.5 3.5V7.5h4" />
+      <path d="M7 11.5h6M7 14.5h4" />
     </svg>
   )
 }
@@ -374,9 +375,9 @@ export function StarFilledIcon(props: IconProps) {
 export function KanbanIcon(props: IconProps) {
   return (
     <svg {...strokeProps} {...props}>
-      <rect x="3.5" y="4" width="3.8" height="12" rx="1" />
-      <rect x="8.1" y="4" width="3.8" height="8.5" rx="1" />
-      <rect x="12.7" y="4" width="3.8" height="10" rx="1" />
+      <rect x="3" y="4" width="3.2" height="12" rx="1" />
+      <rect x="8.4" y="4" width="3.2" height="7.5" rx="1" />
+      <rect x="13.8" y="4" width="3.2" height="10" rx="1" />
     </svg>
   )
 }
@@ -388,4 +389,32 @@ export function ListIcon(props: IconProps) {
     </svg>
   )
 }
+
+export function VolumeIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <polygon points="9 4 5 7.5 2 7.5 2 12.5 5 12.5 9 16 9 4" />
+      <path d="M12.5 7.5a3.5 3.5 0 0 1 0 5" />
+      <path d="M15.5 5a7 7 0 0 1 0 10" />
+    </svg>
+  )
+}
+
+export function LayoutIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <rect x="3" y="3.5" width="14" height="13" rx="2" />
+      <path d="M3 8.5h14M8.5 8.5v8" />
+    </svg>
+  )
+}
+
+export function PromoteIcon(props: IconProps) {
+  return (
+    <svg {...strokeProps} {...props}>
+      <path d="M5 15L15 5M7 5h8v8" />
+    </svg>
+  )
+}
+
 

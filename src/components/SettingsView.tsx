@@ -1,11 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
-import { BellIcon, CheckIcon, FolderSyncIcon, InfoIcon, LogoMark } from './icons'
-import AutoArchivePicker from './AutoArchivePicker'
+import {
+  BellIcon,
+  CalendarIcon,
+  CheckIcon,
+  FlagIcon,
+  FolderSyncIcon,
+  InfoIcon,
+  LayoutIcon,
+  LogoMark,
+  SunIcon,
+  VolumeIcon,
+} from './icons'
 import { AppUpdateSection } from './AppUpdate'
-import { APP_NAME, APP_VERSION, LAST_LEGAL_UPDATE } from '../constants'
+import {
+  APP_NAME,
+  APP_VERSION_CODENAME,
+  APP_VERSION_DISPLAY,
+  LAST_LEGAL_UPDATE,
+} from '../constants'
 import { isNativePlatform, hasNativeWriteAccess } from '../lib/sync'
+import { isMac, getSearchShortcut } from '../lib/platform'
+import { playTaskCompleteSound } from '../lib/sound'
 import {
   getNotificationStatus,
   requestNativePermission,
@@ -13,17 +30,58 @@ import {
   type NotificationStatus,
 } from '../lib/notifications'
 
-import type { AppSettings } from '../types'
+import type { AppSettings, Collection, PriorityLevel } from '../types'
 import type { AppUpdater } from '../lib/useAppUpdater'
 
 function Shortcut({ keys, label }: { keys: string; label: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-1">
-      <span className="text-[14.5px] text-ink-700">{label}</span>
-      <kbd className="rounded-md bg-paper-200/90 border border-paper-300/40 px-2 py-0.5 font-sans text-[12px] font-medium text-ink-500 shadow-2xs">
+    <div className="flex items-center justify-between gap-4 py-1.5">
+      <span className="text-body text-ink-700">{label}</span>
+      <kbd className="rounded-lg bg-paper-200/90 px-2.5 py-1 font-mono text-caption font-medium text-ink-500 shadow-2xs">
         {keys}
       </kbd>
     </div>
+  )
+}
+
+import Dropdown, { type DropdownOption } from './Dropdown'
+
+const PRIORITY_OPTIONS: DropdownOption<PriorityLevel | 'none'>[] = [
+  { value: 'none', label: 'None' },
+  { value: 'low', label: 'Low', textClass: 'text-slateblue-600' },
+  { value: 'medium', label: 'Medium', textClass: 'text-pine-500' },
+  { value: 'high', label: 'High', textClass: 'text-amber-600' },
+  { value: 'urgent', label: 'Urgent', textClass: 'text-terra-600' },
+]
+
+function Switch({
+  checked,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean
+  onChange: () => void
+  ariaLabel?: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      onClick={onChange}
+      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-out-expo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500/60 ${
+        checked
+          ? 'bg-pine-600'
+          : 'bg-paper-300 hover:bg-paper-400/80'
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block size-5 transform rounded-full bg-paper-50 shadow-xs ring-1 ring-black/5 transition-transform duration-200 ease-out-expo ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
   )
 }
 
@@ -31,9 +89,9 @@ export default function SettingsView({
   settings,
   onUpdateSettings,
   onClearAll,
-  onArchiveOldCompleted,
   onExportData,
   onImportData,
+  onExportMarkdown,
   canInstallPWA,
   isStandalonePWA,
   onInstallPWA,
@@ -42,19 +100,20 @@ export default function SettingsView({
   isSyncActive,
   syncNeedsPermission,
   lastSyncFormatted,
-  syncSizeBytes,
   syncErrorMsg,
   syncResolveMsg,
   onSelectSyncFolder,
   onDisconnectSyncFolder,
   updater,
+  collections,
+  onOpenBulkDelete,
 }: {
   settings?: AppSettings
   onUpdateSettings?: (patch: Partial<AppSettings>) => void
   onClearAll: () => void
-  onArchiveOldCompleted?: (days?: number) => void
   onExportData?: () => Promise<string>
   onImportData?: (json: string) => Promise<boolean>
+  onExportMarkdown?: (listId?: string | null) => string
   canInstallPWA?: boolean
   isStandalonePWA?: boolean
   onInstallPWA?: () => void
@@ -69,9 +128,10 @@ export default function SettingsView({
   onSelectSyncFolder?: () => void
   onDisconnectSyncFolder?: () => void
   updater?: AppUpdater
+  collections?: Collection[]
+  onOpenBulkDelete?: () => void
 }) {
   const [armed, setArmed] = useState(false)
-  const [archivedCountMsg, setArchivedCountMsg] = useState<string | null>(null)
   const [dataMsg, setDataMsg] = useState<string | null>(null)
   const [notifStatus, setNotifStatus] = useState<NotificationStatus>('unknown')
   const [notifMsg, setNotifMsg] = useState<string | null>(null)
@@ -97,6 +157,14 @@ export default function SettingsView({
     }
     onUpdateSettings?.({ notificationsEnabled: enable })
     setNotifMsg(null)
+  }
+
+  const handleToggleSound = () => {
+    const enable = !(settings?.soundEnabled ?? false)
+    onUpdateSettings?.({ soundEnabled: enable })
+    if (enable) {
+      playTaskCompleteSound()
+    }
   }
 
   const exportData = async () => {
@@ -169,51 +237,42 @@ export default function SettingsView({
     setArmed(false)
   }
 
-  const currentArchiveDays = settings?.autoArchiveDays ?? 7
-
-  const handleArchiveOld = () => {
-    const days = currentArchiveDays > 0 ? currentArchiveDays : 7
-    onArchiveOldCompleted?.(days)
-    setArchivedCountMsg(`Archived completed tasks older than ${days} ${days === 1 ? 'day' : 'days'}!`)
-    setTimeout(() => setArchivedCountMsg(null), 3000)
-  }
-
   return (
-    <div className="pb-12 max-w-xl mx-auto">
+    <div className="pb-16 max-w-xl mx-auto space-y-8 sm:space-y-10">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <LogoMark className="size-8.5 shrink-0" />
+      <div className="flex items-center justify-between gap-4 pt-2">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <LogoMark className="size-9 shrink-0 shadow-xs" />
           <div className="min-w-0">
-            <h1 className="font-sans text-[22px] sm:text-[24px] font-bold leading-none tracking-tight text-ink-900">
+            <h1 className="font-sans text-display font-bold leading-none tracking-tight text-ink-900 sm:text-display-md">
               {APP_NAME}<span className="text-pine-500">.</span>
             </h1>
-            <p className="mt-1 text-[12.5px] text-ink-500 truncate">v{APP_VERSION} · calm by design</p>
+            <p className="mt-1 text-small text-ink-500 truncate">calm by design · warm editorial</p>
           </div>
         </div>
-        <span className="shrink-0 rounded-lg bg-pine-500/15 px-2.5 py-1 text-[12px] font-mono font-semibold text-pine-300 border border-pine-500/30">
-          v{APP_VERSION}
+        <span className="shrink-0 rounded-lg bg-paper-200/80 px-2.5 py-1 text-caption font-mono font-medium text-ink-500 shadow-2xs">
+          v{APP_VERSION_DISPLAY}
         </span>
       </div>
 
-      {/* PWA section is only shown on web, completely hidden for native APK */}
+      {/* PWA section (web only) */}
       {!isNative && (
-        <section className="mt-8 sm:mt-10">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
+        <section className="space-y-2.5">
+          <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
             Progressive Web App
           </h2>
-          <div className="rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5">
-            <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold text-ink-900 leading-snug">Desktop & Mobile App</p>
-                <p className="mt-1 text-[13px] text-ink-500 leading-relaxed">
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Desktop & Mobile App</p>
+                <p className="mt-1 text-body text-ink-500 leading-relaxed">
                   {isStandalonePWA
                     ? 'Tasquera is running as an installed standalone app with offline support.'
                     : 'Download Tasquera to your desktop or phone home screen for instant offline access.'}
                 </p>
               </div>
               {isStandalonePWA ? (
-                <span className="inline-flex shrink-0 items-center self-start sm:self-center gap-1.5 rounded-xl bg-pine-500/15 px-3 py-1.5 text-[13px] font-medium text-pine-300 border border-pine-500/30">
+                <span className="inline-flex shrink-0 items-center self-start sm:self-center gap-1.5 rounded-xl bg-pine-500/15 px-3 py-1.5 text-body font-medium text-pine-300">
                   <CheckIcon className="size-4 text-pine-400" /> Installed
                 </span>
               ) : (
@@ -222,7 +281,7 @@ export default function SettingsView({
                   whileTap={{ scale: 0.97 }}
                   onClick={onInstallPWA}
                   disabled={!canInstallPWA}
-                  className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-[13.5px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 disabled:opacity-50"
+                  className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-[#fbf9f5] shadow-xs transition-colors hover:bg-pine-700 active:bg-pine-800 disabled:opacity-50 cursor-pointer"
                 >
                   Install App
                 </motion.button>
@@ -232,54 +291,169 @@ export default function SettingsView({
         </section>
       )}
 
-      {/* Task Automation */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
-          Task Automation
+      {/* Preferences & Interface */}
+      <section className="space-y-2.5">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
+          Preferences & Interface
         </h2>
-        <div className="divide-y divide-paper-200/60 rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink-900 leading-snug">Auto-archive completed tasks</p>
-              <p className="mt-0.5 text-[13px] text-ink-500 leading-relaxed">
-                Automatically moves done tasks to the Archive in the background.
-              </p>
+        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-6">
+          {/* Appearance Theme */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
+                <SunIcon className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Daylight theme (Warm Light)</p>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  {(settings?.theme ?? 'dark') === 'light'
+                    ? 'Warm cream paper aesthetic for bright environments.'
+                    : 'Warm editorial dark theme.'}
+                </p>
+              </div>
             </div>
-            <div className="shrink-0 self-start sm:self-center">
-              <AutoArchivePicker
-                value={currentArchiveDays}
-                onChange={(val) => onUpdateSettings?.({ autoArchiveDays: val })}
-              />
-            </div>
+            <Switch
+              checked={(settings?.theme ?? 'dark') === 'light'}
+              onChange={() =>
+                onUpdateSettings?.({
+                  theme: (settings?.theme ?? 'dark') === 'light' ? 'dark' : 'light',
+                })
+              }
+              ariaLabel="Daylight theme"
+            />
           </div>
 
-          <div className="pt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-[14.5px] font-medium text-ink-800 leading-snug">Manual archive now</p>
-              <p className="mt-0.5 text-[12.5px] text-ink-500 leading-relaxed">
-                Immediately archive completed tasks older than {currentArchiveDays > 0 ? `${currentArchiveDays} days` : '7 days'}.
-              </p>
-              {archivedCountMsg && <p className="mt-1.5 text-[12px] font-medium text-pine-400">{archivedCountMsg}</p>}
+          {/* Week Start Day */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
+                <CalendarIcon className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Start week on Monday</p>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  {(settings?.weekStartsOn ?? 'monday') === 'monday'
+                    ? 'Weeks start on Monday in calendar & date pickers.'
+                    : 'Weeks start on Sunday in calendar & date pickers.'}
+                </p>
+              </div>
             </div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              type="button"
-              onClick={handleArchiveOld}
-              className="shrink-0 self-start sm:self-center rounded-xl bg-paper-200/90 px-4 py-2 text-[13px] font-medium text-ink-700 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs"
-            >
-              Archive older tasks
-            </motion.button>
+            <Switch
+              checked={(settings?.weekStartsOn ?? 'monday') === 'monday'}
+              onChange={() =>
+                onUpdateSettings?.({
+                  weekStartsOn: (settings?.weekStartsOn ?? 'monday') === 'monday' ? 'sunday' : 'monday',
+                })
+              }
+              ariaLabel="Start week on Monday"
+            />
+          </div>
+
+          {/* Desktop Task Modal Layout */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
+                <LayoutIcon className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Desktop slide-out drawer</p>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  {settings?.taskModalLayout === 'drawer'
+                    ? 'Task editor opens as a right-side drawer on desktop.'
+                    : 'Task editor opens as a centered dialog on desktop.'}
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={settings?.taskModalLayout === 'drawer'}
+              onChange={() =>
+                onUpdateSettings?.({
+                  taskModalLayout: settings?.taskModalLayout === 'drawer' ? 'centered' : 'drawer',
+                })
+              }
+              ariaLabel="Desktop slide-out drawer"
+            />
+          </div>
+
+          {/* Completion Sound Feedback */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div
+                className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                  settings?.soundEnabled ? 'bg-pine-500/15 text-pine-400' : 'bg-paper-200 text-ink-400'
+                }`}
+              >
+                <VolumeIcon className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-body-lg font-semibold text-ink-900 leading-snug">Completion chime</p>
+                  {settings?.soundEnabled && (
+                    <button
+                      type="button"
+                      onClick={() => playTaskCompleteSound()}
+                      className="rounded-md bg-paper-200 px-2 py-0.5 text-caption font-medium text-ink-600 hover:bg-paper-300 hover:text-ink-900 transition-colors cursor-pointer"
+                    >
+                      Test
+                    </button>
+                  )}
+                </div>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  Play a quiet, gentle tone when checking off a task.
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={settings?.soundEnabled ?? false}
+              onChange={handleToggleSound}
+              ariaLabel="Completion chime"
+            />
+          </div>
+
+          {/* Default Task Priority */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
+                <FlagIcon className="size-4.5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Default task priority</p>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  Initial priority assigned when quick-adding tasks.
+                </p>
+              </div>
+            </div>
+            <div className="self-start sm:self-center shrink-0">
+              <Dropdown<PriorityLevel | 'none'>
+                value={settings?.defaultTaskPriority ?? 'none'}
+                options={PRIORITY_OPTIONS}
+                onChange={(val) => onUpdateSettings?.({ defaultTaskPriority: val })}
+                ariaLabel="Default task priority"
+                align="right"
+                valueTextClass={
+                  settings?.defaultTaskPriority === 'low'
+                    ? 'text-slateblue-600'
+                    : settings?.defaultTaskPriority === 'medium'
+                      ? 'text-pine-500'
+                      : settings?.defaultTaskPriority === 'high'
+                        ? 'text-amber-600'
+                        : settings?.defaultTaskPriority === 'urgent'
+                          ? 'text-terra-600'
+                          : 'text-ink-900'
+                }
+                triggerClass="bg-paper-200 hover:bg-paper-300 rounded-xl px-3 py-1.5 min-w-[100px] justify-between shadow-2xs"
+              />
+            </div>
           </div>
         </div>
       </section>
 
       {/* Notifications */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
-          Notifications
+      <section className="space-y-2.5">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
+          Notifications & Reminders
         </h2>
-        <div className="rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5">
+        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs">
           <div className="flex items-start justify-between gap-3 sm:gap-4">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               <div
@@ -291,90 +465,74 @@ export default function SettingsView({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[15px] font-semibold text-ink-900 leading-snug">
-                    Due date & deadline reminders
+                  <span className="text-body-lg font-semibold text-ink-900 leading-snug">
+                    Due date reminders
                   </span>
                   {settings?.notificationsEnabled && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-[11.5px] font-medium text-pine-300 border border-pine-500/30">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-caption font-medium text-pine-300">
                       <span className="size-1.5 rounded-full bg-pine-400 animate-pulse" />
                       On
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-[12.5px] text-ink-500 leading-relaxed">
+                <p className="mt-1 text-small text-ink-500 leading-relaxed">
                   {isNative
                     ? 'Tasquera reminds you when tasks are due, even when the app is closed.'
                     : 'Tasquera reminds you when tasks are due while it’s open in this browser.'}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings?.notificationsEnabled ?? false}
-              onClick={handleToggleNotifications}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                settings?.notificationsEnabled ? 'bg-pine-600' : 'bg-paper-300'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                  settings?.notificationsEnabled ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
+            <Switch
+              checked={settings?.notificationsEnabled ?? false}
+              onChange={handleToggleNotifications}
+              ariaLabel="Due date reminders"
+            />
           </div>
 
           {notifMsg && (
-            <p className="mt-3 rounded-xl border border-terra-500/20 bg-terra-500/10 p-3 text-[12.5px] font-medium text-terra-600">
+            <p className="mt-4 rounded-xl bg-terra-50 p-3.5 text-small font-medium text-terra-600">
               {notifMsg}
             </p>
           )}
 
           {settings?.notificationsEnabled && (
-            <div className="mt-4 flex flex-col gap-3 border-t border-paper-200/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="mt-5 flex flex-col gap-3 border-t border-paper-200/50 pt-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-[14.5px] font-medium text-ink-800">Remind on due date at</p>
-                <p className="mt-0.5 text-[12.5px] text-ink-500 leading-relaxed">
-                  Date-only due dates remind at this time. Deadlines use their own time.
+                <p className="text-body-lg font-medium text-ink-800">Remind on due date at</p>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  Date-only tasks trigger a reminder at this local time.
                 </p>
               </div>
               <input
                 type="time"
                 value={settings?.notificationTime ?? '09:00'}
                 onChange={(e) => onUpdateSettings?.({ notificationTime: e.target.value || '09:00' })}
-                className="shrink-0 self-start sm:self-center rounded-xl border border-paper-200 bg-paper-50 px-3.5 py-2 text-[13.5px] font-medium text-ink-700 transition-colors hover:border-paper-300 focus:border-pine-500 focus:outline-none"
+                className="shrink-0 self-start sm:self-center rounded-xl bg-paper-50 px-3.5 py-2 text-body font-medium text-ink-700 shadow-2xs transition-colors hover:bg-paper-200/60 focus:ring-2 focus:ring-pine-500 focus:outline-none"
               />
             </div>
           )}
 
           {notifStatus === 'denied' && (
-            <p className="mt-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+            <p className="mt-4 rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
               {isNative
                 ? 'Notifications are blocked at the system level. Allow them for Tasquera in Android settings, then toggle reminders on.'
                 : 'Notifications are blocked for this site. Allow them in your browser’s site permissions, then toggle reminders on.'}
             </p>
           )}
           {!isNative && notifStatus === 'unsupported' && (
-            <p className="mt-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+            <p className="mt-4 rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
               Notifications aren’t supported in this browser. Reminders will appear in-app on the Today view instead.
-            </p>
-          )}
-          {!isNative && (
-            <p className="mt-3 text-[12px] text-ink-500 leading-relaxed">
-              Browsers can’t schedule notifications in the background without a push server, so reminders appear while
-              Tasquera is open, including the installed PWA. Overdue reminders are caught up the next time you open the app.
             </p>
           )}
         </div>
       </section>
 
       {/* Syncthing & Storage Sync */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
+      <section className="space-y-2.5">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
           {isNative ? 'Device Storage & Sync' : 'Syncthing & Local Sync'}
         </h2>
-        <div className="overflow-hidden rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5">
+        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-4">
           {/* Main Card Header */}
           <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -387,21 +545,21 @@ export default function SettingsView({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[15px] font-semibold text-ink-900 leading-snug">
+                  <span className="text-body-lg font-semibold text-ink-900 leading-snug">
                     {isNative ? 'Native Syncthing Sync' : 'Folder Sync Binding'}
                   </span>
                   {isSyncActive ? (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-[11.5px] font-medium text-pine-300 border border-pine-500/30">
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-caption font-medium text-pine-300">
                       <span className="size-1.5 rounded-full bg-pine-400 animate-pulse" />
                       Active
                     </span>
                   ) : (
-                    <span className="inline-flex items-center rounded-full bg-paper-200 px-2.5 py-0.5 text-[11.5px] font-medium text-ink-500">
+                    <span className="inline-flex items-center rounded-full bg-paper-200 px-2.5 py-0.5 text-caption font-medium text-ink-500">
                       {isNative ? 'Paused' : 'Not Connected'}
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-[12.5px] text-ink-500 leading-relaxed">
+                <p className="mt-1 text-small text-ink-500 leading-relaxed">
                   {isNative
                     ? 'Continuous local sync with your device storage for Syncthing'
                     : 'Direct bidirectional file sync with your local filesystem'}
@@ -417,7 +575,7 @@ export default function SettingsView({
                   whileTap={{ scale: 0.97 }}
                   type="button"
                   onClick={onDisconnectSyncFolder}
-                  className="w-full sm:w-auto rounded-xl border border-paper-200 bg-paper-50 px-3.5 py-2 text-[13px] font-medium text-terra-600 shadow-2xs transition-colors hover:bg-terra-50 hover:border-terra-200 text-center"
+                  className="w-full sm:w-auto rounded-xl bg-paper-200 px-3.5 py-2 text-body font-medium text-terra-600 shadow-2xs transition-colors hover:bg-terra-50 text-center cursor-pointer"
                 >
                   {isNative ? 'Pause Sync' : 'Disconnect'}
                 </motion.button>
@@ -427,7 +585,7 @@ export default function SettingsView({
                   whileTap={{ scale: 0.97 }}
                   onClick={onSelectSyncFolder}
                   disabled={!isFileSystemSupported && !isNative}
-                  className="w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-[13px] font-medium text-white shadow-2xs transition-colors hover:bg-pine-700 disabled:opacity-50 text-center"
+                  className="w-full sm:w-auto rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-[#fbf9f5] shadow-xs transition-colors hover:bg-pine-700 active:bg-pine-800 disabled:opacity-50 text-center cursor-pointer"
                 >
                   {isNative ? (syncNeedsPermission ? 'Grant access' : 'Enable Sync') : 'Select Folder'}
                 </motion.button>
@@ -436,15 +594,15 @@ export default function SettingsView({
           </div>
 
           {/* Sync Path & Status Info Bar */}
-          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-paper-200/60 bg-paper-50/70 p-3 text-[12px] sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2 rounded-xl bg-paper-50 p-3.5 text-small sm:flex-row sm:items-center sm:justify-between shadow-2xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="shrink-0 font-medium text-ink-400">Path:</span>
-              <span className="truncate font-mono text-[11.5px] text-ink-800 bg-paper-200/70 px-2 py-0.5 rounded-md">
+              <span className="truncate font-mono text-caption text-ink-800 bg-paper-200/80 px-2 py-0.5 rounded-md">
                 {isNative ? 'Documents/Tsqsync/tasquera-sync.json' : isSyncActive ? 'Linked Folder / tasquera-sync.json' : 'Not linked'}
               </span>
             </div>
             {isSyncActive && (
-              <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] text-ink-500">
+              <span className="flex shrink-0 items-center gap-1.5 text-caption text-ink-500">
                 <span className="size-1.5 rounded-full bg-pine-500" />
                 {lastSyncFormatted ? `Synced at ${lastSyncFormatted}` : 'Auto-syncing changes'}
               </span>
@@ -453,46 +611,39 @@ export default function SettingsView({
 
           {/* Browser Unsupported Warning */}
           {!isFileSystemSupported && !isNative && (
-            <div className="mt-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
+            <div className="rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
               Your current browser does not support local folder access. You can still use the <strong>Backup & restore</strong> feature below to export and import data manually.
             </div>
           )}
 
           {/* Storage access required (Android 11+) */}
           {syncNeedsPermission && (
-            <div className="mt-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
-              Android 11 and newer require <strong>All files access</strong> to read and write the <code className="font-mono text-[11px]">Documents/Tsqsync/</code> folder. Grant it once and Tasquera will reconnect automatically.
+            <div className="rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
+              Android 11 and newer require <strong>All files access</strong> to read and write the <code className="font-mono text-caption">Documents/Tsqsync/</code> folder. Grant it once and Tasquera will reconnect automatically.
             </div>
           )}
 
           {/* Error Message */}
           {syncErrorMsg && (
-            <div className="mt-3.5 rounded-xl border border-terra-500/20 bg-terra-500/10 p-3 text-[12.5px] font-medium text-terra-700">
+            <div className="rounded-xl bg-terra-50 p-3.5 text-small font-medium text-terra-600">
               {syncErrorMsg}
-            </div>
-          )}
-
-          {/* Large sync file notice */}
-          {typeof syncSizeBytes === 'number' && syncSizeBytes > 2_000_000 && (
-            <div className="mt-3.5 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-[12.5px] text-amber-900 leading-snug">
-              Your sync file is currently {(syncSizeBytes / 1_000_000).toFixed(1)} MB. Image attachments are embedded in it as base64, so large photos make the file big and Syncthing re-syncs the whole file on every change.
             </div>
           )}
 
           {/* Auto-resolved conflict notice */}
           {syncResolveMsg && (
-            <div className="mt-3.5 rounded-xl border border-pine-500/20 bg-pine-500/10 p-3 text-[12.5px] font-medium text-pine-700">
+            <div className="rounded-xl bg-pine-50 p-3.5 text-small font-medium text-pine-400">
               {syncResolveMsg}
             </div>
           )}
 
           {/* Syncthing Guide Card */}
-          <div className="mt-3.5 flex items-start gap-2.5 rounded-xl bg-paper-200/40 p-3 text-[12px] text-ink-600 leading-relaxed">
+          <div className="flex items-start gap-2.5 rounded-xl bg-paper-200/50 p-3.5 text-small text-ink-600 leading-relaxed">
             <InfoIcon className="size-4 shrink-0 text-ink-400 mt-0.5" />
             <div className="min-w-0 flex-1">
               {isNative ? (
                 <>
-                  <span className="font-semibold text-ink-800">Syncthing Setup:</span> In your Syncthing app on Android, add and share the folder <code className="font-mono text-[11px] text-pine-400 bg-paper-50 px-1.5 py-0.5 rounded">Documents/Tsqsync/</code>. Tasquera writes and reads state directly from this directory.
+                  <span className="font-semibold text-ink-800">Syncthing Setup:</span> In your Syncthing app on Android, add and share the folder <code className="font-mono text-caption text-pine-400 bg-paper-50 px-1.5 py-0.5 rounded">Documents/Tsqsync/</code>. Tasquera writes and reads state directly from this directory.
                 </>
               ) : (
                 <>
@@ -504,86 +655,83 @@ export default function SettingsView({
         </div>
       </section>
 
-      {/* Interface */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
-          Interface
-        </h2>
-        <div className="rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5 flex items-center justify-between gap-4">
-          <div className="min-w-0 flex-1">
-            <p className="text-[15px] font-semibold text-ink-900 leading-snug">Show sidebar quick-add field</p>
-            <p className="mt-0.5 text-[13px] text-ink-500 leading-relaxed">
-              Displays a quick input box in the sidebar for rapid task creation.
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={settings?.showQuickAdd ?? false}
-            onClick={() => onUpdateSettings?.({ showQuickAdd: !settings?.showQuickAdd })}
-            className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              settings?.showQuickAdd ? 'bg-pine-600' : 'bg-paper-300'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block size-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                settings?.showQuickAdd ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
-        </div>
-      </section>
-
       {/* Keyboard Shortcuts - Desktop web only, hidden on mobile screens & APK */}
       {!isNative && (
-        <section className="mt-8 sm:mt-10 hidden md:block">
-          <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
+        <section className="space-y-2.5 hidden md:block">
+          <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
             Keyboard Shortcuts
           </h2>
-          <div className="rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5 space-y-1.5">
+          <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-2">
             <Shortcut keys="/" label="Quick-add a task" />
-            <Shortcut keys="Enter" label="Add / submit" />
-            <Shortcut keys="Ctrl+K" label="Search tasks" />
-            <Shortcut keys="Ctrl+Z / Ctrl+Y" label="Undo / redo" />
-            <Shortcut keys="Drag" label="Reorder tasks" />
+            <Shortcut keys="Enter" label="Add / submit task" />
+            <Shortcut keys="j / k" label="Navigate tasks (Vim / arrows)" />
+            <Shortcut keys="x" label="Toggle completed" />
+            <Shortcut keys="e" label="Edit task details" />
+            <Shortcut keys="Shift + Click" label="Multi-select tasks" />
+            <Shortcut keys={getSearchShortcut()} label="Search tasks & collections" />
+            <Shortcut keys={isMac() ? '⌘Z / ⇧⌘Z' : 'Ctrl+Z / Ctrl+Y'} label="Undo / redo" />
+            <Shortcut keys="Drag" label="Reorder tasks & columns" />
           </div>
         </section>
       )}
 
       {/* Data Management */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
+      <section className="space-y-2.5">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
           Data Management
         </h2>
-        <div className="divide-y divide-paper-200/60 rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5 space-y-4">
+        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-6">
           {dataMsg && (
-            <p className="rounded-xl border border-pine-500/20 bg-pine-500/10 p-3 text-[12.5px] font-medium text-pine-400">
+            <p className="rounded-xl bg-pine-50 p-3.5 text-small font-medium text-pine-400">
               {dataMsg}
             </p>
           )}
+
+          {/* Backup & Restore */}
           <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink-900 leading-snug">Backup & restore</p>
-              <p className="mt-0.5 text-[13px] text-ink-500 leading-relaxed">
+              <p className="text-body-lg font-semibold text-ink-900 leading-snug">Backup & restore</p>
+              <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
                 {isNative
                   ? 'Export a snapshot JSON backup to device storage, or restore previous tasks from one.'
-                  : 'Data lives in this browser. Export a JSON backup, or restore from one.'}
+                  : 'Data lives locally in this browser. Export a JSON backup, or restore from one.'}
               </p>
             </div>
-            <div className="flex shrink-0 gap-2.5 self-start sm:self-center w-full sm:w-auto">
+            <div className="flex shrink-0 gap-2 self-start sm:self-center w-full sm:w-auto">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={exportData}
-                className="flex-1 sm:flex-initial rounded-xl bg-paper-200/90 px-4 py-2 text-[13.5px] font-medium text-ink-700 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center"
+                className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
               >
-                Export
+                Export JSON
               </motion.button>
+              {onExportMarkdown && (
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => {
+                    const md = onExportMarkdown()
+                    const blob = new Blob([md], { type: 'text/markdown' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `tasquera-tasks-${new Date().toISOString().slice(0, 10)}.md`
+                    a.click()
+                    URL.revokeObjectURL(url)
+                    setDataMsg('Markdown checklist downloaded.')
+                    setTimeout(() => setDataMsg(null), 3000)
+                  }}
+                  className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
+                >
+                  Export MD
+                </motion.button>
+              )}
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-1 sm:flex-initial rounded-xl bg-paper-200/90 px-4 py-2 text-[13.5px] font-medium text-ink-700 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center"
+                className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
               >
                 Import
               </motion.button>
@@ -591,17 +739,39 @@ export default function SettingsView({
             </div>
           </div>
 
-          <div className="pt-4 flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+          {/* Bulk Delete Lists */}
+          {collections && collections.length > 0 && onOpenBulkDelete && (
+            <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Bulk delete lists</p>
+                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
+                  Select and delete multiple lists at once. Tasks inside them will be moved to Unsorted.
+                </p>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.97 }}
+                type="button"
+                onClick={onOpenBulkDelete}
+                className="shrink-0 self-start sm:self-center rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs w-full sm:w-auto text-center cursor-pointer"
+              >
+                Delete lists…
+              </motion.button>
+            </div>
+          )}
+
+          {/* Clear All Tasks */}
+          <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-[15px] font-semibold text-ink-900 leading-snug">Clear all tasks</p>
-              <p className="mt-0.5 text-[13px] text-ink-500 leading-relaxed">Removes every task. Boards and lists stay.</p>
+              <p className="text-body-lg font-semibold text-ink-900 leading-snug">Clear all tasks</p>
+              <p className="mt-0.5 text-small text-ink-500 leading-relaxed">Removes every task. Boards and lists stay intact.</p>
             </div>
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.97 }}
               onClick={clear}
-              className={`shrink-0 self-start sm:self-center rounded-xl px-4 py-2 text-[13.5px] font-medium transition-colors duration-150 w-full sm:w-auto text-center ${
-                armed ? 'bg-terra-600 text-white shadow-2xs' : 'text-terra-600 hover:bg-terra-50 border border-terra-500/20'
+              className={`shrink-0 self-start sm:self-center rounded-xl px-4 py-2 text-body font-medium transition-colors duration-150 w-full sm:w-auto text-center cursor-pointer ${
+                armed ? 'bg-terra-600 text-[#fbf9f5] shadow-xs' : 'text-terra-600 hover:bg-terra-50 bg-paper-200/80'
               }`}
             >
               {armed ? 'Tap to confirm' : 'Clear all'}
@@ -614,39 +784,41 @@ export default function SettingsView({
       {isNative && updater && <AppUpdateSection updater={updater} />}
 
       {/* About & Legal */}
-      <section className="mt-8 sm:mt-10">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-400 mb-2.5 ml-1">
+      <section className="space-y-2.5">
+        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
           About & Legal
         </h2>
-        <div className="divide-y divide-paper-200/60 rounded-2xl border border-paper-200/70 bg-paper-100/50 p-4 sm:p-5 space-y-3">
-          <div className="flex items-center justify-between text-[14px]">
+        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between text-body">
             <span className="text-ink-700">Application Version</span>
-            <span className="font-mono text-[13px] text-ink-900 font-medium">{APP_VERSION}</span>
+            <span className="font-mono text-small text-ink-900 font-medium">
+              {APP_VERSION_DISPLAY} <span className="font-sans font-normal text-caption text-ink-400">({APP_VERSION_CODENAME})</span>
+            </span>
           </div>
-          <div className="pt-3 flex items-center justify-between text-[14px]">
+          <div className="flex items-center justify-between text-body">
             <span className="text-ink-700">Storage Architecture</span>
-            <span className="text-[13px] text-pine-400 font-medium">100% Local-First</span>
+            <span className="text-small text-pine-400 font-medium">100% Local-First</span>
           </div>
-          <div className="pt-3 flex items-center justify-between text-[14px]">
+          <div className="flex items-center justify-between text-body">
             <span className="text-ink-700">Last Legal Update</span>
-            <span className="text-[13px] text-ink-500">{LAST_LEGAL_UPDATE}</span>
+            <span className="text-small text-ink-500">{LAST_LEGAL_UPDATE}</span>
           </div>
-          <div className="pt-4 flex flex-wrap items-center gap-2 sm:gap-2.5 text-[12.5px] font-medium">
+          <div className="pt-2 flex flex-wrap items-center gap-2 text-small font-medium">
             <a
               href="#/tos"
-              className="rounded-lg bg-paper-200/70 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-200 hover:text-pine-300 active:scale-95"
+              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
             >
               Terms of Service
             </a>
             <a
               href="#/privacy"
-              className="rounded-lg bg-paper-200/70 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-200 hover:text-pine-300 active:scale-95"
+              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
             >
               Privacy Policy
             </a>
             <a
               href="#/licenses"
-              className="rounded-lg bg-paper-200/70 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-200 hover:text-pine-300 active:scale-95"
+              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
             >
               Open Source Licenses
             </a>
@@ -654,7 +826,7 @@ export default function SettingsView({
               href="https://discord.gg/Kfn4V2nF3N"
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg bg-paper-200/70 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-200 hover:text-pine-300 active:scale-95"
+              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
             >
               Discord
             </a>

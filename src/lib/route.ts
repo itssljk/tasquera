@@ -2,8 +2,14 @@ import { useEffect, useState } from 'react'
 import type { Collection, Route, Task } from '../types'
 
 export function parseRoute(hash: string): Route {
-  const h = hash.replace(/^#\/?/, '').split('?')[0]
-  const [seg, id] = h.split('/')
+  let h = hash.replace(/^#\/?/, '').split('?')[0]
+  try {
+    h = decodeURIComponent(h)
+  } catch {
+    // ignore decoding errors
+  }
+  const [seg, ...rest] = h.split('/')
+  const id = rest.join('/')
   switch (seg) {
     case 'today':
       return { name: 'today' }
@@ -13,8 +19,6 @@ export function parseRoute(hash: string): Route {
       return { name: 'calendar' }
     case 'completed':
       return { name: 'completed' }
-    case 'archive':
-      return { name: 'archive' }
     case 'settings':
       return { name: 'settings' }
     case 'tos':
@@ -26,8 +30,8 @@ export function parseRoute(hash: string): Route {
     case 'license':
     case 'legal':
       return { name: 'licenses' }
-    case 'search':
-      return { name: 'search' }
+    case 'collection':
+      return id ? { name: 'collection', id, kind: 'list' } : { name: 'inbox' }
     case 'board':
       return id ? { name: 'collection', id, kind: 'board' } : { name: 'inbox' }
     case 'list':
@@ -38,22 +42,20 @@ export function parseRoute(hash: string): Route {
 }
 
 export function routeHref(route: Route): string {
-  if (route.name === 'collection') return `#/${route.kind}/${route.id}`
+  if (route.name === 'collection') return `#/collection/${route.id}`
   return `#/${route.name}`
 }
 
 export function getTaskLocationHref(task: Task, collections: Collection[]): string {
-  if (task.archived) return '#/archive'
   if (task.listId) {
     const col = collections.find((c) => c.id === task.listId)
-    if (col) return `#/${col.kind}/${col.id}`
+    if (col) return `#/collection/${col.id}`
   }
   if (task.done) return '#/completed'
   return '#/inbox'
 }
 
 export function getTaskLocationLabel(task: Task, collections: Collection[]): string {
-  if (task.archived) return 'Archive'
   if (task.listId) {
     const col = collections.find((c) => c.id === task.listId)
     if (col) return col.name

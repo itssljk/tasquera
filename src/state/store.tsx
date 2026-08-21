@@ -1,19 +1,23 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { AppSettings, Collection, CollectionKind, Task, TaskStatus, Tombstone } from '../types'
+import type { AppSettings, Collection, CollectionKind, CollectionViewMode, Task, TaskStatus, Tombstone } from '../types'
 import { freshId, normalizeCollection, normalizeTask, normalizeTombstone, uid } from '../lib/model'
 import { nextOccurrenceTask } from '../lib/recurrence'
 import { mergeSyncState } from '../lib/merge'
-import { collectImages, deleteImages, importImages } from '../lib/attachments'
+import { isMac } from '../lib/platform'
+import { playTaskCompleteSound } from '../lib/sound'
+import { parseTaskInput } from '../lib/nlp'
 
 const STORAGE_KEY = 'tasquera.state.v2'
 const LEGACY_KEY = 'tasquera.tasks.v1'
 
 const DEFAULT_SETTINGS: AppSettings = {
-  showQuickAdd: false,
-  autoArchiveDays: 7,
   notificationsEnabled: false,
   notificationTime: '09:00',
+  taskModalLayout: 'centered',
+  weekStartsOn: 'monday',
+  soundEnabled: false,
+  defaultTaskPriority: 'none',
 }
 
 interface Persisted {
@@ -69,22 +73,27 @@ export interface StoreValue {
   deleteTask: (id: string) => void
   updateTask: (id: string, patch: Partial<Task>) => void
   moveTask: (id: string, listId: string | null) => void
-  archiveTask: (id: string) => void
-  archiveOldCompleted: (days?: number) => void
-  restoreTask: (id: string) => void
   clearCompleted: () => void
   clearAll: () => void
   exportData: () => Promise<string>
   importData: (json: string) => Promise<boolean>
+  exportMarkdown: (listId?: string | null) => string
   mergeState: (remoteTasks: Task[], remoteCollections: Collection[], remoteTombstones?: Tombstone[]) => void
   reorderTasks: (ids: string[]) => void
-  reorderCollections: (kind: CollectionKind, reordered: Collection[]) => void
+  reorderCollections: (reorderedOrKind: Collection[] | CollectionKind, reordered?: Collection[]) => void
   reorderFavorites: (reordered: Collection[]) => void
   reorderColumnTasks: (status: TaskStatus, reordered: Task[]) => void
-  addCollection: (kind: CollectionKind, name: string) => void
+  batchUpdateTasks: (ids: string[], patch: Partial<Task>) => void
+  batchDeleteTasks: (ids: string[]) => void
+  batchToggleTasks: (ids: string[], done: boolean) => void
+  batchMoveTasks: (ids: string[], listId: string | null) => void
+  batchScheduleTasks: (ids: string[], dueDate: string | null) => void
+  addCollection: (nameOrKind: string, nameOrDefaultView?: string | CollectionViewMode) => void
   renameCollection: (id: string, name: string) => void
   deleteCollection: (id: string) => void
+  deleteCollections: (ids: string[], deleteTasks?: boolean) => void
   toggleFavoriteCollection: (id: string) => void
+  setCollectionViewMode: (id: string, viewMode: CollectionViewMode) => void
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
@@ -105,31 +114,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state])
 
-  // Automatically archive completed tasks older than the configured threshold (default 7 days)
-  useEffect(() => {
-    const runAutoArchive = () => {
-      const days = state.settings?.autoArchiveDays ?? 7
-      if (days <= 0) return
-
-      const cutoff = Date.now() - days * 86400000
-      setState((prev) => {
-        let hasChanges = false
-        const updatedTasks = prev.tasks.map((t) => {
-          if (!t.archived && t.done && (t.completedAt ?? t.createdAt) < cutoff) {
-            hasChanges = true
-            return { ...t, archived: true, updatedAt: Date.now() }
-          }
-          return t
-        })
-        return hasChanges ? { ...prev, tasks: updatedTasks } : prev
-      })
-    }
-
-    runAutoArchive()
-    const interval = setInterval(runAutoArchive, 1000 * 60 * 60) // Check every hour
-    return () => clearInterval(interval)
-  }, [state.settings?.autoArchiveDays])
-
   const commitState = (updater: (prev: Persisted) => Persisted) => {
     setState((prev) => {
       const next = updater(prev)
@@ -147,7 +131,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setPast(newPast)
     setFuture((f) => [state, ...f])
     setState(previous)
-    setUndoToastMessage('Action undone (Ctrl+Z)')
+    setUndoToastMessage(isMac() ? 'Action undone (⌘Z)' : 'Action undone (Ctrl+Z)')
   }
 
   const redo = () => {
@@ -157,7 +141,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setFuture(newFuture)
     setPast((p) => [...p, state])
     setState(next)
-    setUndoToastMessage('Action redone (Ctrl+Y)')
+    setUndoToastMessage(isMac() ? 'Action redone (⇧⌘Z)' : 'Action redone (Ctrl+Y)')
   }
 
   useEffect(() => {
@@ -218,13 +202,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (typeof data === 'string') {
         const trimmed = data.trim()
         if (!trimmed) return
-        taskPartial = { title: trimmed, listId, status }
+        const parsed = parseTaskInput(trimmed)
+        taskPartial = {
+          title: parsed.title,
+          dueDate: parsed.dueDate,
+          priority: parsed.priority,
+          listId,
+          status,
+        }
       } else {
         const trimmed = data.title.trim()
         if (!trimmed) return
-        taskPartial = { ...data, title: trimmed }
+        const parsed = parseTaskInput(trimmed)
+        taskPartial = {
+          ...data,
+          title: parsed.title || trimmed,
+          dueDate: data.dueDate ? data.dueDate : (parsed.dueDate || null),
+          priority: (data.priority && data.priority !== 'medium') ? data.priority : (parsed.priority || data.priority),
+        }
       }
       const isDone = taskPartial.status === 'done' || taskPartial.done === true
+      const defaultPriority =
+        state.settings?.defaultTaskPriority && state.settings.defaultTaskPriority !== 'none'
+          ? state.settings.defaultTaskPriority
+          : undefined
+      const priority = taskPartial.priority ?? defaultPriority
       const task: Task = normalizeTask({
         id: uid(),
         createdAt: Date.now(),
@@ -232,6 +234,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         listId: taskPartial.listId ?? listId,
         status: taskPartial.status ?? status,
         ...taskPartial,
+        priority,
       })
       commitState((s) => ({ ...s, tasks: [task, ...s.tasks] }))
     },
@@ -239,6 +242,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toggleTask: (id) =>
       commitState((s) => {
         let spawned: Task | null = null
+        let becameDone = false
         const tasks = s.tasks.map((t) => {
           if (t.id !== id) return t
           const wasDone = t.done || t.status === 'done'
@@ -247,6 +251,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             next = { ...t, done: false, status: 'todo', completedAt: null, updatedAt: Date.now() }
           } else if (t.status === 'in_progress') {
             next = { ...t, done: true, status: 'done', completedAt: Date.now(), updatedAt: Date.now() }
+            becameDone = true
           } else {
             next = { ...t, done: false, status: 'in_progress', completedAt: null, updatedAt: Date.now() }
           }
@@ -255,30 +260,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           return next
         })
+        if (becameDone && s.settings?.soundEnabled) {
+          playTaskCompleteSound()
+        }
         return spawned ? { ...s, tasks: [spawned, ...tasks] } : { ...s, tasks }
       }),
 
     deleteTask: (id) =>
-      commitState((s) => {
-        const task = s.tasks.find((t) => t.id === id)
-        if (task?.images?.length) void deleteImages(task.images)
-        return {
-          ...s,
-          tasks: s.tasks.filter((t) => t.id !== id),
-          tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'task', deletedAt: Date.now() }),
-        }
-      }),
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.filter((t) => t.id !== id),
+        tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'task', deletedAt: Date.now() }),
+      })),
 
     updateTask: (id, patch) =>
       commitState((s) => {
-        let removedImages: string[] = []
         let spawned: Task | null = null
+        let becameDone = false
         const tasks = s.tasks.map((t) => {
           if (t.id !== id) return t
-          if (patch.images !== undefined) {
-            const nextRefs = new Set(patch.images)
-            removedImages = (t.images ?? []).filter((r) => !nextRefs.has(r))
-          }
           const next = { ...t, ...patch, updatedAt: Date.now() }
           if (patch.subtasks !== undefined && patch.subtasks.length > 0) {
             if (patch.subtasks.every((st) => st.done)) {
@@ -302,12 +302,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           }
           const wasDone = t.done || t.status === 'done'
           const isDoneNow = next.done || next.status === 'done'
+          if (!wasDone && isDoneNow) {
+            becameDone = true
+          }
           if (!wasDone && isDoneNow && next.recurrence) {
             spawned = nextOccurrenceTask(next, next.recurrence)
           }
           return next
         })
-        if (removedImages.length > 0) void deleteImages(removedImages)
+        if (becameDone && s.settings?.soundEnabled) {
+          playTaskCompleteSound()
+        }
         return spawned ? { ...s, tasks: [spawned, ...tasks] } : { ...s, tasks }
       }),
 
@@ -317,38 +322,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         tasks: s.tasks.map((t) => (t.id === id ? { ...t, listId, updatedAt: Date.now() } : t)),
       })),
 
-    archiveTask: (id) =>
-      commitState((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived: true, updatedAt: Date.now() } : t)),
-      })),
-
-    archiveOldCompleted: (days = 7) =>
-      commitState((s) => {
-        const cutoff = Date.now() - days * 86400000
-        return {
-          ...s,
-          tasks: s.tasks.map((t) => {
-            if (!t.archived && t.done && (t.completedAt ?? t.createdAt) < cutoff) {
-              return { ...t, archived: true, updatedAt: Date.now() }
-            }
-            return t
-          }),
-        }
-      }),
-
-    restoreTask: (id) =>
-      commitState((s) => ({
-        ...s,
-        tasks: s.tasks.map((t) => (t.id === id ? { ...t, archived: false, updatedAt: Date.now() } : t)),
-      })),
-
     clearCompleted: () =>
       commitState((s) => {
         const done = s.tasks.filter((t) => t.done)
         const now = Date.now()
         if (done.length === 0) return s
-        void deleteImages(done.flatMap((t) => t.images ?? []))
         return {
           ...s,
           tasks: s.tasks.filter((t) => !t.done),
@@ -363,7 +341,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       commitState((s) => {
         if (s.tasks.length === 0) return s
         const now = Date.now()
-        void deleteImages(s.tasks.flatMap((t) => t.images ?? []))
         return {
           ...s,
           tasks: [],
@@ -375,24 +352,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }),
 
     exportData: async () => {
-      const attachments = await collectImages(state.tasks.flatMap((t) => t.images ?? []))
-      return JSON.stringify({ ...state, attachments }, null, 2)
+      return JSON.stringify(state, null, 2)
     },
 
     importData: async (json) => {
       try {
-        const parsed = JSON.parse(json) as Partial<Persisted> & { attachments?: Record<string, string> }
+        const parsed = JSON.parse(json) as Partial<Persisted>
         if (!Array.isArray(parsed.tasks) || !Array.isArray(parsed.collections)) return false
-        if (parsed.attachments && typeof parsed.attachments === 'object') {
-          await importImages(parsed.attachments)
-        }
         commitState(() => ({
           version: 2,
           tasks: parsed.tasks!.map(normalizeTask),
           collections: (parsed.collections as Collection[]).map(normalizeCollection),
           tombstones: (parsed.tombstones ?? []).map(normalizeTombstone),
-          // Restore saved preferences too, so a backup is a true snapshot of
-          // the app (not just the tasks).
           settings: { ...DEFAULT_SETTINGS, ...(parsed.settings || {}) },
         }))
         return true
@@ -431,14 +402,24 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return { ...s, tasks: [...reordered, ...others] }
       }),
 
-    reorderCollections: (kind, reordered) =>
+    reorderCollections: (reorderedOrKind, maybeReordered) =>
       commitState((s) => {
-        // Favorited collections are not part of the section's reorder list;
+        // Favorited collections are not part of the non-favorite reorder list;
         // treat them as fixed anchors so dragging non-favorites never clobbers
         // or duplicates them.
+        let reordered: Collection[]
+        let filterKind: CollectionKind | null = null
+        if (typeof reorderedOrKind === 'string') {
+          filterKind = reorderedOrKind
+          reordered = maybeReordered || []
+        } else {
+          reordered = reorderedOrKind
+        }
+
         let idx = 0
         const next = s.collections.map((c) => {
-          if (c.kind === kind && !c.favorite && idx < reordered.length) {
+          const matches = filterKind ? c.kind === filterKind : true
+          if (matches && !c.favorite && idx < reordered.length) {
             return reordered[idx++]
           }
           return c
@@ -456,8 +437,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }
       }),
 
-    addCollection: (kind, name) =>
+    addCollection: (nameOrKind, nameOrDefaultView) =>
       commitState((s) => {
+        let name = nameOrKind
+        let defaultView: CollectionViewMode = 'list'
+        let kind: CollectionKind = 'list'
+
+        if (nameOrDefaultView !== undefined) {
+          if (nameOrKind === 'board' || nameOrKind === 'list') {
+            kind = nameOrKind
+            name = nameOrDefaultView
+            if (kind === 'board') defaultView = 'board'
+          } else {
+            defaultView = nameOrDefaultView as CollectionViewMode
+          }
+        }
+
         const trimmed = name.trim()
         if (!trimmed) return s
         const c: Collection = {
@@ -465,11 +460,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           kind,
           name: trimmed,
           favorite: false,
+          defaultView,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
         return { ...s, collections: [c, ...s.collections] }
       }),
+
+    setCollectionViewMode: (id, viewMode) =>
+      commitState((s) => ({
+        ...s,
+        collections: s.collections.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                defaultView: viewMode,
+                kind: viewMode === 'board' ? 'board' : 'list',
+                updatedAt: Date.now(),
+              }
+            : c
+        ),
+      })),
 
     renameCollection: (id, name) => {
       const trimmed = name.trim()
@@ -487,6 +498,36 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         tasks: s.tasks.map((t) => (t.listId === id ? { ...t, listId: null, updatedAt: Date.now() } : t)),
         tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'collection', deletedAt: Date.now() }),
       })),
+
+    deleteCollections: (ids, deleteTasks = false) => {
+      const idSet = new Set(ids)
+      if (idSet.size === 0) return
+      const now = Date.now()
+      commitState((s) => {
+        let newTombstones = s.tombstones ?? []
+        for (const id of idSet) {
+          newTombstones = withTombstone(newTombstones, { id, kind: 'collection', deletedAt: now })
+        }
+        if (deleteTasks) {
+          const tasksToDelete = s.tasks.filter((t) => t.listId && idSet.has(t.listId))
+          for (const t of tasksToDelete) {
+            newTombstones = withTombstone(newTombstones, { id: t.id, kind: 'task', deletedAt: now })
+          }
+          return {
+            ...s,
+            collections: s.collections.filter((c) => !idSet.has(c.id)),
+            tasks: s.tasks.filter((t) => !(t.listId && idSet.has(t.listId))),
+            tombstones: newTombstones,
+          }
+        }
+        return {
+          ...s,
+          collections: s.collections.filter((c) => !idSet.has(c.id)),
+          tasks: s.tasks.map((t) => (t.listId && idSet.has(t.listId) ? { ...t, listId: null, updatedAt: now } : t)),
+          tombstones: newTombstones,
+        }
+      })
+    },
 
     toggleFavoriteCollection: (id) =>
       commitState((s) => {
@@ -513,6 +554,98 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           collections: [{ ...target, favorite: true, updatedAt: Date.now() }, ...rest],
         }
       }),
+
+    exportMarkdown: (listId) => {
+      const targetTasks = listId !== undefined
+        ? state.tasks.filter((t) => t.listId === listId)
+        : state.tasks
+      const lines: string[] = []
+      const colName = listId ? state.collections.find((c) => c.id === listId)?.name ?? 'Tasks' : 'Tasquera Tasks'
+      lines.push(`# ${colName}\n`)
+      for (const t of targetTasks) {
+        const check = t.done || t.status === 'done' ? '[x]' : '[ ]'
+        const due = t.dueDate ? ` (Due: ${t.dueDate})` : ''
+        const prio = t.priority && t.priority !== 'medium' ? ` [${t.priority.toUpperCase()}]` : ''
+        lines.push(`- ${check} ${t.title}${prio}${due}`)
+        if (t.subtasks && t.subtasks.length > 0) {
+          for (const s of t.subtasks) {
+            lines.push(`  - ${s.done ? '[x]' : '[ ]'} ${s.title}`)
+          }
+        }
+        if (t.description) {
+          lines.push(`    > ${t.description.replace(/\n/g, '\n    > ')}`)
+        }
+      }
+      return lines.join('\n')
+    },
+
+    batchUpdateTasks: (ids, patch) => {
+      const idSet = new Set(ids)
+      if (idSet.size === 0) return
+      const now = Date.now()
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, ...patch, updatedAt: now } : t)),
+      }))
+    },
+
+    batchDeleteTasks: (ids) => {
+      const idSet = new Set(ids)
+      if (idSet.size === 0) return
+      const now = Date.now()
+      commitState((s) => {
+        let newTombstones = s.tombstones ?? []
+        for (const id of idSet) {
+          newTombstones = withTombstone(newTombstones, { id, kind: 'task', deletedAt: now })
+        }
+        return {
+          ...s,
+          tasks: s.tasks.filter((t) => !idSet.has(t.id)),
+          tombstones: newTombstones,
+        }
+      })
+      setUndoToastMessage(`Deleted ${ids.length} ${ids.length === 1 ? 'task' : 'tasks'}`)
+    },
+
+    batchToggleTasks: (ids, done) => {
+      const idSet = new Set(ids)
+      if (idSet.size === 0) return
+      const now = Date.now()
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) =>
+          idSet.has(t.id)
+            ? {
+                ...t,
+                done,
+                status: done ? 'done' : 'todo',
+                completedAt: done ? now : null,
+                updatedAt: now,
+              }
+            : t
+        ),
+      }))
+    },
+
+    batchMoveTasks: (ids, listId) => {
+      const idSet = new Set(ids)
+      if (idSet.size === 0) return
+      const now = Date.now()
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, listId, updatedAt: now } : t)),
+      }))
+    },
+
+    batchScheduleTasks: (ids, dueDate) => {
+      const idSet = new Set(ids)
+      if (idSet.size === 0) return
+      const now = Date.now()
+      commitState((s) => ({
+        ...s,
+        tasks: s.tasks.map((t) => (idSet.has(t.id) ? { ...t, dueDate, updatedAt: now } : t)),
+      }))
+    },
 
     reorderFavorites: (reordered) =>
       commitState((s) => {
