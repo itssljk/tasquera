@@ -11,9 +11,19 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'maskable-icon-512x512.png'],
+      includeAssets: [
+        'favicon.svg',
+        'favicon-16x16.png',
+        'favicon-32x32.png',
+        'favicon-48x48.png',
+        'favicon-96x96.png',
+        'apple-touch-icon.png',
+        'ms-icon-144x144.png',
+        'pwa-192x192.png',
+        'pwa-512x512.png',
+        'maskable-icon-512x512.png'
+      ],
       manifest: {
-        name: 'Tasquera',
         short_name: 'Tasquera',
         description: 'A calm, focused to-do list. Tasks, without the noise.',
         theme_color: '#131211',
