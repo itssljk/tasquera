@@ -1,5 +1,5 @@
 # Tasquera
-
+[![Tasquera Docs](https://img.shields.io/badge/Tasquera-Docs-blue)](https://tasquera-docs.pages.dev/)
 A calm, focused task manager built to help you organize your work without the noise.
 
 ## Features
