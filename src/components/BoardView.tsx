@@ -63,10 +63,12 @@ interface DragPoint {
 function BoardCheckCircle({
   done,
   status,
+  hasMeta,
   onClick,
 }: {
   done: boolean
   status?: TaskStatus
+  hasMeta?: boolean
   onClick: (e: MouseEvent<HTMLButtonElement>) => void
 }) {
   const isDone = done || status === 'done'
@@ -84,7 +86,7 @@ function BoardCheckCircle({
             ? 'Move to Done'
             : 'Move to In Progress'
       }
-      className="mt-0.5 flex size-5.5 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-pine-500/50"
+      className={`${hasMeta ? 'mt-0.5' : ''} flex size-5.5 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-pine-500/50`}
     >
       <svg viewBox="0 0 22 22" className="size-5.5" aria-hidden="true">
         <circle
@@ -126,6 +128,7 @@ function cardSurfaceClass(isDone: boolean, dragging: boolean, menuOpen: boolean)
 
 function ReorderableBoardCard({
   task,
+  hasMeta,
   children,
   menuOpen,
   onOpen,
@@ -134,6 +137,7 @@ function ReorderableBoardCard({
   onDragEnd,
 }: {
   task: Task
+  hasMeta: boolean
   children: ReactNode
   menuOpen: boolean
   onOpen: () => void
@@ -171,7 +175,7 @@ function ReorderableBoardCard({
       whileHover={isDragging ? undefined : { y: -2, transition: { duration: 0.12 } }}
       className={`list-none ${cardSurfaceClass(isDone, isDragging, menuOpen)} coarse:select-none coarse:[-webkit-touch-callout:none]`}
     >
-      <div className="flex items-start gap-2.5" onClick={onOpen}>
+      <div className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-2.5`} onClick={onOpen}>
         {children}
       </div>
     </Reorder.Item>
@@ -257,19 +261,13 @@ export default function BoardView({
     onToggle(task.id)
   }
 
-  const renderCard = (t: Task) => {
+  const renderCard = (t: Task, hasMeta: boolean) => {
     const menuOpen = menu?.kind === 'task' && menu.id === t.id
     const subtasksCount = t.subtasks?.length ?? 0
     const subtasksDoneCount = t.subtasks?.filter((s) => s.done).length ?? 0
     const linksCount = t.links?.length ?? 0
     const isDone = t.done || t.status === 'done'
     const dueOverdue = !isDone && !!t.dueDate && isOverdue(t.dueDate)
-    const hasMeta =
-      (t.priority !== undefined && t.priority !== 'medium') ||
-      !!t.dueDate ||
-      subtasksCount > 0 ||
-      linksCount > 0 ||
-      !!t.description
 
     const priorityColor =
       t.priority === 'urgent'
@@ -283,13 +281,14 @@ export default function BoardView({
     return (
       <>
         <GripVerticalIcon
-          className="mt-1.5 hidden size-3.5 shrink-0 cursor-grab text-ink-400/60 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing sm:block"
+          className={`${hasMeta ? 'mt-1.5' : ''} hidden size-3.5 shrink-0 cursor-grab text-ink-400/60 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing sm:block`}
           aria-label="Drag to reorder vertically"
         />
 
         <BoardCheckCircle
           done={isDone}
           status={t.status}
+          hasMeta={hasMeta}
           onClick={(e) => {
             e.stopPropagation()
             handleToggleClick(e, t)
@@ -350,25 +349,33 @@ export default function BoardView({
             whileTap={{ scale: 0.9 }}
             onClick={(e) => handleCardMenuToggle(e, t.id)}
             aria-label="Task actions"
-            className="mt-0.5 rounded-lg p-1 text-ink-400 transition-opacity hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:group-hover:opacity-100"
+            className={`${hasMeta ? 'mt-0.5' : ''} rounded-lg p-1 text-ink-400 transition-opacity hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:group-hover:opacity-100`}
           >
             <EllipsisVerticalIcon className="size-3.5" />
           </motion.button>
 
           <AnimatePresence>
             {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
-                transition={{ type: 'spring', stiffness: 450, damping: 26 }}
-                style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                className={`absolute right-0 z-50 w-64 max-h-[min(360px,75vh)] overflow-y-auto rounded-2xl border border-paper-200/80 bg-paper-100/95 p-1.5 text-small shadow-2xl backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                  menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-                }`}
-                role="menu"
-                onClick={(e) => e.stopPropagation()}
-              >
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMenu(null)
+                  }}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
+                  transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                  style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
+                  className={`absolute right-0 z-50 w-64 max-h-[min(360px,75vh)] overflow-y-auto rounded-2xl border border-paper-200/80 bg-paper-100/95 p-1.5 text-small shadow-2xl backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                    menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                  }`}
+                  role="menu"
+                  onClick={(e) => e.stopPropagation()}
+                >
                 {/* Status */}
                 <div className="grid grid-cols-3 gap-1 px-0.5 pt-0.5">
                   <motion.button
@@ -519,8 +526,9 @@ export default function BoardView({
                   </motion.button>
                 </div>
               </motion.div>
-            )}
-          </AnimatePresence>
+            </>
+          )}
+        </AnimatePresence>
         </div>
       </>
     )
@@ -646,22 +654,31 @@ export default function BoardView({
                   onReorder={(newOrder) => onReorderColumnTasks?.(col.id, newOrder)}
                   className="flex flex-col gap-2.5"
                 >
-                  {recentTasks.map((t) => (
-                    <ReorderableBoardCard
-                      key={t.id}
-                      task={t}
-                      menuOpen={menu?.kind === 'task' && menu.id === t.id}
-                      onOpen={() => {
-                        onMenu(null)
-                        setDetailsTaskId(t.id)
-                      }}
-                      onDragStart={() => {}}
-                      onDrag={handleCardDrag}
-                      onDragEnd={handleCardDragEnd}
-                    >
-                      {renderCard(t)}
-                    </ReorderableBoardCard>
-                  ))}
+                  {recentTasks.map((t) => {
+                    const hasMeta =
+                      (t.priority !== undefined && t.priority !== 'medium') ||
+                      !!t.dueDate ||
+                      (t.subtasks?.length ?? 0) > 0 ||
+                      (t.links?.length ?? 0) > 0 ||
+                      !!t.description
+                    return (
+                      <ReorderableBoardCard
+                        key={t.id}
+                        task={t}
+                        hasMeta={hasMeta}
+                        menuOpen={menu?.kind === 'task' && menu.id === t.id}
+                        onOpen={() => {
+                          onMenu(null)
+                          setDetailsTaskId(t.id)
+                        }}
+                        onDragStart={() => {}}
+                        onDrag={handleCardDrag}
+                        onDragEnd={handleCardDragEnd}
+                      >
+                        {renderCard(t, hasMeta)}
+                      </ReorderableBoardCard>
+                    )
+                  })}
                 </Reorder.Group>
 
                 {col.id === 'done' && olderTasks.length > 0 && (
@@ -683,6 +700,12 @@ export default function BoardView({
                         {olderTasks.map((t) => {
                           const isDone = t.done || t.status === 'done'
                           const menuOpen = menu?.kind === 'task' && menu.id === t.id
+                          const hasMeta =
+                            (t.priority !== undefined && t.priority !== 'medium') ||
+                            !!t.dueDate ||
+                            (t.subtasks?.length ?? 0) > 0 ||
+                            (t.links?.length ?? 0) > 0 ||
+                            !!t.description
                           return (
                             <div
                               key={t.id}
@@ -692,7 +715,7 @@ export default function BoardView({
                               }}
                               className={cardSurfaceClass(isDone, false, menuOpen)}
                             >
-                              <div className="flex items-start gap-2.5">{renderCard(t)}</div>
+                              <div className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-2.5`}>{renderCard(t, hasMeta)}</div>
                             </div>
                           )
                         })}

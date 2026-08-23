@@ -1,4 +1,4 @@
-import { registerPlugin } from '@capacitor/core'
+import { Capacitor, registerPlugin } from '@capacitor/core'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { idbKeyval } from './idb'
 
@@ -33,6 +33,7 @@ interface UpdateProgress {
 interface AppUpdatePlugin {
   getInfo(): Promise<UpdateInfo>
   getUpdateUrl(): Promise<{ url: string }>
+  fetchManifest(options?: { url?: string }): Promise<unknown>
   checkInstallPermission(): Promise<{ granted: boolean }>
   openInstallPermission(): Promise<void>
   download(options: { url: string; sha256?: string }): Promise<{ path: string }>
@@ -94,6 +95,19 @@ export function resolveApkUrl(manifest: UpdateManifest, manifestUrl: string): st
 
 export async function fetchUpdateManifest(manifestUrl?: string): Promise<UpdateManifest> {
   const url = manifestUrl ?? (await resolveUpdateUrl())
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const raw = await AppUpdate.fetchManifest({ url })
+      const manifest = parseManifest(raw)
+      if (!manifest) throw new Error('Update manifest is missing or invalid')
+      return manifest
+    } catch (nativeErr: unknown) {
+      const msg = nativeErr instanceof Error ? nativeErr.message : String(nativeErr)
+      throw new Error(msg)
+    }
+  }
+
   const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`Update check failed (HTTP ${res.status})`)
   const manifest = parseManifest(await res.json())

@@ -187,6 +187,15 @@ export default function TaskRow(props: TaskRowProps) {
   const subtasksCount = task.subtasks?.length ?? 0
   const subtasksDoneCount = task.subtasks?.filter((s) => s.done).length ?? 0
   const linksCount = task.links?.length ?? 0
+  const hasMeta =
+    (task.priority !== undefined && task.priority !== 'medium') ||
+    (!!task.recurrence && !done) ||
+    (!!task.dueDate && !done) ||
+    subtasksCount > 0 ||
+    !!task.description ||
+    linksCount > 0 ||
+    (done && !!task.completedAt) ||
+    !!meta
 
   const rowTransition: Transition = {
     layout: { type: 'spring', stiffness: 400, damping: 30 },
@@ -217,13 +226,13 @@ export default function TaskRow(props: TaskRowProps) {
 
   const rowContent = (
     <>
-      <div className="flex items-start gap-3 w-full">
+      <div className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-3 w-full`}>
         {onSelectToggle ? (
           <button
             type="button"
             onClick={(e) => onSelectToggle(task.id, e)}
             aria-label={selected ? `Deselect “${task.title}”` : `Select “${task.title}”`}
-            className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer"
+            className={`${hasMeta ? 'mt-0.5' : ''} shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer`}
           >
             <CheckCircle done={done} status={task.status} />
           </button>
@@ -239,7 +248,7 @@ export default function TaskRow(props: TaskRowProps) {
                   : `Move “${task.title}” to In Progress`
             }
             aria-pressed={done}
-            className="mt-0.5 shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer"
+            className={`${hasMeta ? 'mt-0.5' : ''} shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer`}
           >
             <CheckCircle done={done} status={task.status} />
           </button>
@@ -276,92 +285,94 @@ export default function TaskRow(props: TaskRowProps) {
           </motion.p>
 
           {/* Metadata Indicators */}
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption font-medium text-ink-500">
-            {/* Priority */}
-            {task.priority && task.priority !== 'medium' && (
-              <span
-                className={`inline-flex items-center gap-1 font-semibold ${
-                  task.priority === 'urgent'
-                    ? 'text-terra-600'
-                    : task.priority === 'high'
-                      ? 'text-amber-600'
-                      : 'text-slateblue-600'
-                }`}
-              >
-                <FlagIcon className="size-3" />
-                <span className="capitalize">{task.priority}</span>
-              </span>
-            )}
+          {hasMeta && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption font-medium text-ink-500">
+              {/* Priority */}
+              {task.priority && task.priority !== 'medium' && (
+                <span
+                  className={`inline-flex items-center gap-1 font-semibold ${
+                    task.priority === 'urgent'
+                      ? 'text-terra-600'
+                      : task.priority === 'high'
+                        ? 'text-amber-600'
+                        : 'text-slateblue-600'
+                  }`}
+                >
+                  <FlagIcon className="size-3" />
+                  <span className="capitalize">{task.priority}</span>
+                </span>
+              )}
 
-            {/* Recurrence */}
-            {task.recurrence && !done && (
-              <span className="inline-flex items-center gap-1 text-pine-600 font-medium">
-                <RepeatIcon className="size-3" />
-                <span>{recurrenceLabel(task.recurrence)}</span>
-              </span>
-            )}
+              {/* Recurrence */}
+              {task.recurrence && !done && (
+                <span className="inline-flex items-center gap-1 text-pine-600 font-medium">
+                  <RepeatIcon className="size-3" />
+                  <span>{recurrenceLabel(task.recurrence)}</span>
+                </span>
+              )}
 
-            {/* Due date */}
-            {task.dueDate && !done && (
-              <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
-                <CalendarIcon className="size-3 text-pine-600" />
-                <span>{formatDue(task.dueDate)}</span>
-              </span>
-            )}
+              {/* Due date */}
+              {task.dueDate && !done && (
+                <span className={`inline-flex items-center gap-1 ${isOverdue(task.dueDate) ? 'text-terra-600 font-semibold' : 'text-ink-500'}`}>
+                  <CalendarIcon className="size-3 text-pine-600" />
+                  <span>{formatDue(task.dueDate)}</span>
+                </span>
+              )}
 
-            {/* Subtasks progress indicator */}
-            {subtasksCount > 0 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setExpanded(!expanded)
-                }}
-                title={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
-                aria-label={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
-                className="inline-flex items-center gap-1 text-ink-500 hover:text-ink-800 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
-              >
-                <SubtaskIcon className="size-3 text-pine-600" />
-                <span className="tabular-nums">{subtasksDoneCount}/{subtasksCount}</span>
-              </button>
-            )}
+              {/* Subtasks progress indicator */}
+              {subtasksCount > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setExpanded(!expanded)
+                  }}
+                  title={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
+                  aria-label={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
+                  className="inline-flex items-center gap-1 text-ink-500 hover:text-ink-800 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
+                >
+                  <SubtaskIcon className="size-3 text-pine-600" />
+                  <span className="tabular-nums">{subtasksDoneCount}/{subtasksCount}</span>
+                </button>
+              )}
 
-            {/* Description / Notes icon */}
-            {task.description && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setExpanded(!expanded)
-                }}
-                title="Notes"
-                aria-label="View notes"
-                className="inline-flex items-center text-ink-400 hover:text-ink-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
-              >
-                <NotesIcon className="size-3" />
-              </button>
-            )}
+              {/* Description / Notes icon */}
+              {task.description && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setExpanded(!expanded)
+                  }}
+                  title="Notes"
+                  aria-label="View notes"
+                  className="inline-flex items-center text-ink-400 hover:text-ink-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
+                >
+                  <NotesIcon className="size-3" />
+                </button>
+              )}
 
-            {/* Links icon */}
-            {linksCount > 0 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setExpanded(!expanded)
-                }}
-                title={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
-                aria-label={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
-                className="inline-flex items-center gap-1 text-ink-400 hover:text-pine-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
-              >
-                <LinkIcon className="size-3" />
-                <span className="tabular-nums">{linksCount}</span>
-              </button>
-            )}
+              {/* Links icon */}
+              {linksCount > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setExpanded(!expanded)
+                  }}
+                  title={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
+                  aria-label={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
+                  className="inline-flex items-center gap-1 text-ink-400 hover:text-pine-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
+                >
+                  <LinkIcon className="size-3" />
+                  <span className="tabular-nums">{linksCount}</span>
+                </button>
+              )}
 
-            {done && task.completedAt && <span className="text-ink-400">Completed {formatDate(task.completedAt)}</span>}
-            {meta && <span className="text-ink-400">{meta}</span>}
-          </div>
+              {done && task.completedAt && <span className="text-ink-400">Completed {formatDate(task.completedAt)}</span>}
+              {meta && <span className="text-ink-400">{meta}</span>}
+            </div>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
@@ -395,198 +406,103 @@ export default function TaskRow(props: TaskRowProps) {
 
             <AnimatePresence>
               {menuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 26 }}
-                  style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                  className={`absolute right-0 z-50 w-64 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-2 shadow-2xl backdrop-blur-md border border-paper-200/90 text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
-                    menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
-                  }`}
-                  role="menu"
-                  onClick={(e) => e.stopPropagation()}
-                >
-            {onEditDetails && (
-              <>
-                <motion.button
-                  whileHover={{ x: 3 }}
-                  whileTap={{ scale: 0.98 }}
-                  transition={{ duration: 0.12 }}
-                  onClick={() => {
-                    onEditDetails(task)
-                    close()
-                  }}
-                  className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-1.5 font-medium text-pine-600 hover:bg-pine-500/10 transition-colors"
-                >
-                  <PencilIcon className="size-3.5" />
-                  <span>Edit details...</span>
-                </motion.button>
-                <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
+                <>
+                  <div
+                    className="fixed inset-0 z-40 cursor-default"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      close()
+                    }}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
+                    transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                    style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
+                    className={`absolute right-0 z-50 w-52 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-1.5 shadow-2xl backdrop-blur-md border border-paper-200/90 text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                      menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
+                    }`}
+                    role="menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                  {onEditDetails && (
+                    <motion.button
+                      whileHover={{ x: 2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ duration: 0.12 }}
+                      onClick={() => {
+                        onEditDetails(task)
+                        close()
+                      }}
+                      className="flex w-full cursor-pointer items-center gap-2 rounded-xl px-2.5 py-1.5 text-small font-medium text-pine-600 hover:bg-pine-500/10 transition-colors"
+                    >
+                      <PencilIcon className="size-3.5" />
+                      <span>Edit details...</span>
+                    </motion.button>
+                  )}
+
+                  {(collections.length > 0 || task.listId !== null) && (
+                    <>
+                      {onEditDetails && <div className="mx-1.5 my-1 h-px bg-paper-200/60" />}
+                      <p className="px-2.5 pb-1 pt-0.5 text-micro font-semibold uppercase tracking-wider text-ink-400">Move to</p>
+                      <motion.button
+                        whileHover={{ x: 2 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={{ duration: 0.12 }}
+                        className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small transition-colors ${
+                          task.listId === null ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
+                        }`}
+                        onClick={() => {
+                          onMove(task.id, null)
+                          close()
+                        }}
+                      >
+                        <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === null ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
+                        <span className="min-w-0 flex-1 truncate">Inbox</span>
+                      </motion.button>
+
+                      {collections.map((col) => (
+                        <motion.button
+                          key={col.id}
+                          whileHover={{ x: 2 }}
+                          whileTap={{ scale: 0.98 }}
+                          transition={{ duration: 0.12 }}
+                          className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small transition-colors ${
+                            task.listId === col.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
+                          }`}
+                          onClick={() => {
+                            onMove(task.id, col.id)
+                            close()
+                          }}
+                        >
+                          <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === col.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
+                          <span className="min-w-0 flex-1 truncate">{col.name}</span>
+                        </motion.button>
+                      ))}
+                    </>
+                  )}
+
+                  <div className="mx-1.5 my-1 h-px bg-paper-200/60" />
+
+                  {/* Delete */}
+                  <motion.button
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.98 }}
+                    transition={{ duration: 0.12 }}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small text-terra-600 transition-colors hover:bg-terra-50"
+                    onClick={() => {
+                      onDelete(task.id)
+                      close()
+                    }}
+                  >
+                    <TrashIcon className="size-3.5" />
+                    <span>Delete</span>
+                  </motion.button>
+                </motion.div>
               </>
             )}
-
-            {/* Status Switcher */}
-            <p className="px-2.5 pb-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Status</p>
-            <div className="grid grid-cols-3 gap-1 px-1 pb-2">
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.04, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.12 }}
-                onClick={() => {
-                  onUpdate(task.id, { status: 'todo', done: false, completedAt: null })
-                  close()
-                }}
-                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
-                  !task.done && (task.status === 'todo' || !task.status)
-                    ? 'bg-paper-200 text-ink-900 font-semibold shadow-2xs'
-                    : 'text-ink-600 hover:bg-paper-100 hover:text-ink-900'
-                }`}
-              >
-                To Do
-              </motion.button>
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.04, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.12 }}
-                onClick={() => {
-                  onUpdate(task.id, { status: 'in_progress', done: false, completedAt: null })
-                  close()
-                }}
-                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
-                  !task.done && task.status === 'in_progress'
-                    ? 'bg-amber-600/20 text-amber-700 font-semibold shadow-2xs'
-                    : 'text-ink-600 hover:bg-amber-500/10 hover:text-amber-600'
-                }`}
-              >
-                In Progress
-              </motion.button>
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.04, y: -1 }}
-                whileTap={{ scale: 0.95 }}
-                transition={{ duration: 0.12 }}
-                onClick={() => {
-                  onUpdate(task.id, { status: 'done', done: true, completedAt: task.completedAt ?? Date.now() })
-                  close()
-                }}
-                className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
-                  task.done || task.status === 'done'
-                    ? 'bg-pine-500/20 text-pine-400 font-semibold shadow-2xs'
-                    : 'text-ink-600 hover:bg-pine-500/15 hover:text-pine-400'
-                }`}
-              >
-                Done
-              </motion.button>
-            </div>
-
-            <div className="mx-2 my-1 h-px bg-paper-200/60" />
-
-            {/* Priority Selector */}
-            <p className="px-2.5 pb-1 pt-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Priority</p>
-            <div className="grid grid-cols-4 gap-1 px-1 pb-2">
-              {(['low', 'medium', 'high', 'urgent'] as const).map((p) => (
-                <motion.button
-                  key={p}
-                  type="button"
-                  whileHover={{ scale: 1.06, y: -1 }}
-                  whileTap={{ scale: 0.94 }}
-                  transition={{ duration: 0.12 }}
-                  onClick={() => {
-                    onUpdate(task.id, { priority: p })
-                    close()
-                  }}
-                  className={`cursor-pointer capitalize rounded-lg px-1.5 py-1 text-micro font-medium transition-colors ${
-                    (task.priority ?? 'medium') === p
-                      ? p === 'urgent'
-                        ? 'bg-terra-600/20 text-terra-600 font-semibold'
-                        : p === 'high'
-                          ? 'bg-amber-600/20 text-amber-600 font-semibold'
-                          : p === 'low'
-                            ? 'bg-slateblue-600/20 text-slateblue-600 font-semibold'
-                            : 'bg-paper-200 text-ink-900 font-semibold'
-                      : 'text-ink-500 hover:bg-paper-100'
-                  }`}
-                >
-                  {p}
-                </motion.button>
-              ))}
-            </div>
-
-            <div className="mx-2 my-1 h-px bg-paper-200/60" />
-
-            {/* Move To */}
-            <p className="px-2.5 pb-1 pt-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Move To</p>
-            <motion.button
-              whileHover={{ x: 3 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.12 }}
-              className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small transition-colors ${
-                task.listId === null ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
-              }`}
-              onClick={() => {
-                onMove(task.id, null)
-                close()
-              }}
-            >
-              <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === null ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-              <span className="min-w-0 flex-1 truncate">Inbox</span>
-            </motion.button>
-
-            {collections.map((col) => (
-              <motion.button
-                key={col.id}
-                whileHover={{ x: 3 }}
-                whileTap={{ scale: 0.98 }}
-                transition={{ duration: 0.12 }}
-                className={`flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small transition-colors ${
-                  task.listId === col.id ? 'font-medium text-ink-900 bg-paper-100' : 'text-ink-700 hover:bg-paper-100'
-                }`}
-                onClick={() => {
-                  onMove(task.id, col.id)
-                  close()
-                }}
-              >
-                <span className={`size-1.5 shrink-0 rounded-full transition-transform ${task.listId === col.id ? 'bg-pine-500 scale-125' : 'bg-transparent'}`} />
-                <span className="min-w-0 flex-1 truncate">{col.name}</span>
-              </motion.button>
-            ))}
-
-            <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
-
-            {/* Due Date */}
-            <p className="px-2.5 pb-1 text-micro font-semibold uppercase tracking-wider text-ink-400">Due Date</p>
-            <div className="px-1 pb-1">
-              <input
-                type="date"
-                value={task.dueDate ?? ''}
-                onChange={(e) => onUpdate(task.id, { dueDate: e.target.value || null })}
-                aria-label="Set due date"
-                className="w-full rounded-lg bg-paper-100 px-2.5 py-1.5 text-small text-ink-900 outline-none focus:ring-2 focus:ring-pine-500/25"
-              />
-            </div>
-
-            <div className="mx-2 my-1.5 h-px bg-paper-200/60" />
-
-            {/* Delete */}
-            <motion.button
-              whileHover={{ x: 2 }}
-              whileTap={{ scale: 0.98 }}
-              transition={{ duration: 0.12 }}
-              className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-small text-terra-600 transition-colors hover:bg-terra-50"
-              onClick={() => {
-                onDelete(task.id)
-                close()
-              }}
-            >
-              <TrashIcon className="size-3.5" />
-              <span>Delete</span>
-            </motion.button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </AnimatePresence>
     </div>
   </div>
 </div>

@@ -279,7 +279,7 @@ export default function App() {
       if (
         target.closest('[role="menu"]') ||
         target.closest('[aria-label="Task actions"]') ||
-        target.closest('[aria-label^="Actions for "] ||') ||
+        target.closest('[aria-label^="Actions for "]') ||
         target.closest('[aria-label^="Actions for “"]') ||
         target.closest('[data-menu-trigger]')
       ) {
@@ -380,7 +380,11 @@ export default function App() {
       <main className="flex-1 w-full overflow-y-auto">
         <div
           className={`mx-auto w-full px-4 sm:px-6 lg:px-8 pb-32 pt-4 sm:pt-8 lg:pt-10 transition-[max-width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            view.mode === 'board' ? 'max-w-[1400px]' : 'max-w-[720px]'
+            view.mode === 'board'
+              ? 'max-w-[1400px]'
+              : view.mode === 'calendar'
+                ? 'max-w-[1120px]'
+                : 'max-w-[720px]'
           }`}
         >
           <AnimatePresence mode="wait" initial={false}>

@@ -16,26 +16,33 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 /**
  * Self-update support for the sideloaded APK (no Play Store).
  *
- * The web layer fetches a small {@code update.json} manifest from GitHub
- * Releases, compares its {@code versionCode} against the installed build, and
- * drives this plugin to download the new APK (verifying its SHA-256), then
- * hand off to the system package installer. Android still requires the user to
- * confirm the install; fully silent self-updates are not allowed.
+ * The web layer requests the {@code update.json} manifest from GitHub
+ * Releases via this plugin (to bypass WebView CORS), compares its
+ * {@code versionCode} against the installed build, and drives this plugin
+ * to download the new APK (verifying its SHA-256), then hand off to the system
+ * package installer. Android still requires the user to confirm the install;
+ * fully silent self-updates are not allowed.
  */
 @CapacitorPlugin(name = "AppUpdate")
 public class AppUpdatePlugin extends Plugin {
 
+    private static final String DEFAULT_UPDATE_URL = "https://github.com/itssljk/tasquera/releases/latest/download/update.json";
     private static final String PROGRESS_EVENT = "updateProgress";
 
     /** Installed app version, read from the package manager. */
@@ -55,6 +62,57 @@ public class AppUpdatePlugin extends Plugin {
         } catch (Exception e) {
             call.reject("Failed to read installed app version", e);
         }
+    }
+
+    /** Returns the configured update manifest URL. */
+    @PluginMethod
+    public void getUpdateUrl(PluginCall call) {
+        String url = getConfig().getString("updateUrl", DEFAULT_UPDATE_URL);
+        JSObject result = new JSObject();
+        result.put("url", url);
+        call.resolve(result);
+    }
+
+    /**
+     * Fetches the update manifest JSON via native HTTP, avoiding WebView CORS restrictions.
+     */
+    @PluginMethod
+    public void fetchManifest(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) {
+            url = getConfig().getString("updateUrl", DEFAULT_UPDATE_URL);
+        }
+        final String targetUrl = url;
+
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                conn = openConnectionWithRedirects(targetUrl, "application/json");
+                int code = conn.getResponseCode();
+                if (code < 200 || code >= 300) {
+                    call.reject("Update check failed (HTTP " + code + ")");
+                    return;
+                }
+
+                InputStream in = conn.getInputStream();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    sb.append(line);
+                }
+                reader.close();
+                in.close();
+
+                JSONObject json = new JSONObject(sb.toString());
+                JSObject result = JSObject.fromJSONObject(json);
+                call.resolve(result);
+            } catch (Exception e) {
+                call.reject("Update check failed: " + e.getMessage(), e);
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }, "tasquera-update-manifest").start();
     }
 
     /** Whether "install unknown apps" is allowed for this package (API 26+). */
@@ -157,6 +215,48 @@ public class AppUpdatePlugin extends Plugin {
         }
     }
 
+    private HttpURLConnection openConnectionWithRedirects(String initialUrl, String acceptHeader) throws IOException {
+        String currentUrl = initialUrl;
+        int redirects = 0;
+        final int MAX_REDIRECTS = 7;
+
+        while (redirects < MAX_REDIRECTS) {
+            URL url = new URL(currentUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setInstanceFollowRedirects(false);
+            conn.setConnectTimeout(20000);
+            conn.setReadTimeout(60000);
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("User-Agent", "Tasquera-Android");
+            if (acceptHeader != null && !acceptHeader.isEmpty()) {
+                conn.setRequestProperty("Accept", acceptHeader);
+            }
+            conn.connect();
+
+            int code = conn.getResponseCode();
+            if (code == HttpURLConnection.HTTP_MOVED_PERM ||
+                code == HttpURLConnection.HTTP_MOVED_TEMP ||
+                code == HttpURLConnection.HTTP_SEE_OTHER ||
+                code == 307 || code == 308) {
+
+                String location = conn.getHeaderField("Location");
+                conn.disconnect();
+                if (location == null || location.isEmpty()) {
+                    throw new IOException("Redirect status " + code + " without Location header");
+                }
+                URL base = new URL(currentUrl);
+                URL target = new URL(base, location);
+                currentUrl = target.toExternalForm();
+                redirects++;
+                continue;
+            }
+
+            return conn;
+        }
+
+        throw new IOException("Too many redirects attempting to connect to " + initialUrl);
+    }
+
     private File downloadToCache(String url, String expectedSha256) throws Exception {
         File dir = new File(getContext().getCacheDir(), "updates");
         if (!dir.exists() && !dir.mkdirs()) {
@@ -169,14 +269,7 @@ public class AppUpdatePlugin extends Plugin {
 
         HttpURLConnection conn = null;
         try {
-            URL target = new URL(url);
-            conn = (HttpURLConnection) target.openConnection();
-            conn.setInstanceFollowRedirects(true);
-            conn.setConnectTimeout(20000);
-            conn.setReadTimeout(60000);
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/octet-stream");
-            conn.connect();
+            conn = openConnectionWithRedirects(url, "application/octet-stream");
 
             int code = conn.getResponseCode();
             if (code < 200 || code >= 300) {
