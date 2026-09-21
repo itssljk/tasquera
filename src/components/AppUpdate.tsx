@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { CheckCircleIcon, CloseIcon, DownloadIcon, InfoIcon } from './icons'
 import type { AppUpdater } from '../lib/useAppUpdater'
+import { versionLabel } from '../constants'
 
 function ProgressBar({ percent }: { percent: number }) {
   const pct = Math.min(100, Math.max(0, percent))
@@ -30,7 +31,7 @@ export function AppUpdateBanner({ updater }: { updater: AppUpdater }) {
 
   const title =
     status === 'available'
-      ? `Update ${manifest.versionName} is available`
+      ? `Update ${versionLabel(manifest.versionName)} is available`
       : status === 'downloading'
         ? 'Downloading update…'
         : status === 'ready'
@@ -39,11 +40,11 @@ export function AppUpdateBanner({ updater }: { updater: AppUpdater }) {
 
   const subtitle =
     status === 'available'
-      ? `You're on ${updater.currentVersion ?? 'an older version'}.`
+      ? `You're on ${updater.currentVersion ? versionLabel(updater.currentVersion) : 'an older version'}.`
       : status === 'downloading'
         ? `${Math.round(updater.progress)}%`
         : status === 'ready'
-          ? `${manifest.versionName} downloaded and verified.`
+          ? `${versionLabel(manifest.versionName)} downloaded and verified.`
           : 'Finish the Android prompt to update.'
 
   const canDismiss = status === 'available' || status === 'ready'
@@ -202,12 +203,12 @@ export function AppUpdateSection({ updater }: { updater: AppUpdater }) {
                 {status === 'upToDate'
                   ? 'You’re up to date'
                   : manifest
-                    ? `${manifest.versionName} available`
+                    ? `${versionLabel(manifest.versionName)} available`
                     : 'App updates'}
               </p>
               <p className="mt-1 text-small text-ink-500 leading-relaxed">
                 {status === 'upToDate'
-                  ? `Tasquera ${updater.currentVersion ? `v${updater.currentVersion.replace(/^v/, '')}` : ''} is the latest version.`
+                  ? `Tasquera ${versionLabel(updater.currentVersion)} is the latest version.`
                   : status === 'available'
                     ? `A newer version is ready to download.`
                     : status === 'downloading'

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { SPRINGS } from '../lib/motion'
 import type { Collection } from '../types'
 import { CalendarIcon, CheckIcon, CloseIcon, ListIcon, TrashIcon } from './icons'
 import { todayISO, addDaysISO } from '../lib/date'
@@ -28,51 +29,52 @@ export default function BatchActionBar({
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const [showDateMenu, setShowDateMenu] = useState(false)
 
-  if (selectedCount === 0) return null
-
   const today = todayISO()
   const tomorrow = addDaysISO(today, 1)
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 32, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 24, scale: 0.95 }}
-      transition={{ type: 'spring', stiffness: 450, damping: 30 }}
-      className="fixed bottom-20 md:bottom-8 left-1/2 z-40 flex -translate-x-1/2 flex-wrap items-center gap-2 rounded-2xl border border-paper-200/90 bg-paper-100/98 px-4 py-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-xl text-ink-900 text-small"
+      initial={{ opacity: 0, y: 32, scale: 0.92, filter: 'blur(4px)' }}
+      animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, y: 24, scale: 0.92, filter: 'blur(4px)' }}
+      transition={SPRINGS.popover}
+      className="glass-pill fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:bottom-8 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 px-4 py-2 text-ink-900 text-small shadow-xl"
     >
-      <div className="flex items-center gap-2 pr-2 border-r border-paper-200">
+      <div className="flex items-center gap-2 pr-2 border-r border-paper-200/60">
         <span className="font-semibold text-ink-900 tabular-nums">{selectedCount}</span>
         <span className="text-ink-500 font-medium">selected</span>
       </div>
 
-      <div className="flex items-center gap-1.5">
+      <div className="flex items-center gap-1.5 flex-wrap justify-center">
         {/* Complete */}
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.94 }}
           onClick={onMarkDone}
           title="Mark selected as completed"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-paper-200/60 px-3 py-1.5 text-small font-medium text-ink-700 hover:bg-pine-600 hover:text-paper-50 transition-colors cursor-pointer"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-xl bg-paper-200/60 px-3 py-1.5 text-small font-medium text-ink-700 hover:bg-pine-600 hover:text-on-accent transition-colors cursor-pointer"
         >
           <CheckIcon className="size-3.5" />
           <span className="hidden sm:inline">Complete</span>
-        </button>
+        </motion.button>
 
         {onMarkTodo && (
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.94 }}
             onClick={onMarkTodo}
             title="Mark selected as incomplete"
             className="inline-flex items-center gap-1.5 rounded-xl bg-paper-200/60 px-3 py-1.5 text-small font-medium text-ink-700 hover:bg-paper-200 hover:text-ink-900 transition-colors cursor-pointer"
           >
             <span className="hidden sm:inline">To Do</span>
-          </button>
+          </motion.button>
         )}
 
         {/* Schedule Menu Trigger */}
         <div className="relative">
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.94 }}
             onClick={() => {
               setShowDateMenu(!showDateMenu)
               setShowMoveMenu(false)
@@ -82,7 +84,7 @@ export default function BatchActionBar({
           >
             <CalendarIcon className="size-3.5 text-pine-500" />
             <span className="hidden sm:inline">Due Date</span>
-          </button>
+          </motion.button>
 
           <AnimatePresence>
             {showDateMenu && (
@@ -90,8 +92,8 @@ export default function BatchActionBar({
                 initial={{ opacity: 0, scale: 0.95, y: 4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 4 }}
-                transition={{ duration: 0.15 }}
-                className="absolute bottom-full left-0 mb-2 w-44 rounded-xl border border-paper-200 bg-paper-100 p-1.5 shadow-xl text-left"
+                transition={SPRINGS.popover}
+                className="glass-menu absolute bottom-full left-0 mb-2 w-44 rounded-xl p-1.5 text-left"
               >
                 <button
                   type="button"
@@ -130,8 +132,9 @@ export default function BatchActionBar({
 
         {/* Move Menu Trigger */}
         <div className="relative">
-          <button
+          <motion.button
             type="button"
+            whileTap={{ scale: 0.94 }}
             onClick={() => {
               setShowMoveMenu(!showMoveMenu)
               setShowDateMenu(false)
@@ -141,7 +144,7 @@ export default function BatchActionBar({
           >
             <ListIcon className="size-3.5" />
             <span className="hidden sm:inline">Move</span>
-          </button>
+          </motion.button>
 
           <AnimatePresence>
             {showMoveMenu && (
@@ -149,8 +152,8 @@ export default function BatchActionBar({
                 initial={{ opacity: 0, scale: 0.95, y: 4 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 4 }}
-                transition={{ duration: 0.15 }}
-                className="absolute bottom-full left-0 mb-2 w-48 max-h-56 overflow-y-auto rounded-xl border border-paper-200 bg-paper-100 p-1.5 shadow-xl text-left"
+                transition={SPRINGS.popover}
+                className="glass-menu absolute bottom-full left-0 mb-2 w-48 max-h-56 overflow-y-auto rounded-xl p-1.5 text-left"
               >
                 <button
                   type="button"
@@ -181,25 +184,27 @@ export default function BatchActionBar({
         </div>
 
         {/* Delete */}
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.94 }}
           onClick={onDelete}
           title="Delete selected tasks"
           className="inline-flex items-center gap-1.5 rounded-xl bg-terra-600/15 px-3 py-1.5 text-small font-medium text-terra-600 hover:bg-terra-600 hover:text-white transition-colors cursor-pointer"
         >
           <TrashIcon className="size-3.5" />
           <span className="hidden sm:inline">Delete</span>
-        </button>
+        </motion.button>
 
         {/* Dismiss */}
-        <button
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.9 }}
           onClick={onClearSelection}
           aria-label="Clear selection"
           className="rounded-xl p-1.5 text-ink-400 hover:bg-paper-200 hover:text-ink-900 transition-colors cursor-pointer"
         >
           <CloseIcon className="size-3.5" />
-        </button>
+        </motion.button>
       </div>
     </motion.div>
   )

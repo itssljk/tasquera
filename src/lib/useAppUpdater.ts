@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isNativePlatform } from './sync'
+import { versionLabel } from '../constants'
 import {
   checkForUpdates,
   checkInstallPermission,
@@ -173,7 +174,7 @@ export function useAppUpdater(): AppUpdater {
           setStatus('upToDate')
           setManifest(null)
           setProgress(0)
-          setMessage(`Updated to ${info.versionName}.`)
+          setMessage(`Updated to ${versionLabel(info.versionName)}.`)
         } else {
           setStatus('ready')
         }

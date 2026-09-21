@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MouseEvent, ReactNode } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
+import { SPRINGS } from '../lib/motion'
+import { triggerHaptic } from '../lib/platform'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
-import BoardCardDetails from './BoardCardDetails'
+import { useIsDesktop } from '../lib/useMediaQuery'
 import type { Collection, MenuState, PriorityLevel, Task, TaskStatus } from '../types'
 import { formatDue, isOverdue } from '../lib/date'
+import { parseTaskInput } from '../lib/nlp'
 import {
   CalendarIcon,
   ChevronIcon,
@@ -32,12 +35,13 @@ interface BoardViewProps {
   onOpenCreateModal?: (listId?: string | null, status?: TaskStatus) => void
   onEditDetails?: (task: Task) => void
   onReorderColumnTasks?: (status: TaskStatus, reordered: Task[]) => void
+  onAddTask?: (taskData: Partial<Task> & { title: string; listId?: string | null; status?: TaskStatus }) => void
 }
 
-const COLUMNS: { id: TaskStatus; label: string; dot: string }[] = [
-  { id: 'todo', label: 'To Do', dot: 'bg-ink-400' },
-  { id: 'in_progress', label: 'In Progress', dot: 'bg-amber-600' },
-  { id: 'done', label: 'Done', dot: 'bg-pine-500' },
+const COLUMNS: { id: TaskStatus; label: string; dot: string; emptyWhisper: string }[] = [
+  { id: 'todo', label: 'To Do', dot: 'bg-ink-400', emptyWhisper: 'No cards to do' },
+  { id: 'in_progress', label: 'In Progress', dot: 'bg-amber-600', emptyWhisper: 'No cards in progress' },
+  { id: 'done', label: 'Done', dot: 'bg-pine-500', emptyWhisper: 'No completed cards' },
 ]
 
 const PRIORITIES: { id: PriorityLevel; label: string; dot: string }[] = [
@@ -77,16 +81,16 @@ function BoardCheckCircle({
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.82 }}
+      whileTap={{ scale: 0.8 }}
+      whileHover={{ scale: 1.08 }}
+      transition={SPRINGS.bouncy}
       onClick={onClick}
       aria-label={
         isDone
           ? 'Move back to To Do'
-          : isInProgress
-            ? 'Move to Done'
-            : 'Move to In Progress'
+          : 'Mark as done'
       }
-      className={`${hasMeta ? 'mt-0.5' : ''} flex size-5.5 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-pine-500/50`}
+      className={`${hasMeta ? 'mt-0.5' : ''} flex size-5.5 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-pine-500/50 cursor-pointer`}
     >
       <svg viewBox="0 0 22 22" className="size-5.5" aria-hidden="true">
         <circle
@@ -102,28 +106,32 @@ function BoardCheckCircle({
           <motion.path
             d="M6.75 11.5l2.9 2.9 5.6-5.8"
             fill="none"
-            stroke="#FBF9F5"
+            stroke="var(--color-on-accent)"
             strokeWidth="2.3"
             strokeLinecap="round"
             strokeLinejoin="round"
             initial={{ pathLength: 0 }}
             animate={{ pathLength: 1 }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
           />
         ) : isInProgress ? (
-          <circle cx="11" cy="11" r="3" fill="#FBF9F5" />
+          <circle cx="11" cy="11" r="3" fill="var(--color-on-accent)" />
         ) : null}
       </svg>
     </motion.button>
   )
 }
 
-function cardSurfaceClass(isDone: boolean, dragging: boolean, menuOpen: boolean): string {
-  return `group relative rounded-xl border bg-paper-100 p-3 text-left transition-[background-color,border-color,box-shadow] duration-150 ${
+function cardSurfaceClass(
+  isDone: boolean,
+  dragging: boolean,
+  menuOpen: boolean,
+): string {
+  return `group relative rounded-xl bg-paper-100 p-3.5 text-left ${
     dragging
-      ? 'z-50 scale-[1.02] cursor-grabbing border-paper-300/80 shadow-[0_18px_44px_-14px_rgba(0,0,0,0.75)]'
-      : 'cursor-pointer border-paper-200/60 shadow-[0_1px_2px_rgba(0,0,0,0.35)] hover:border-paper-300/60 hover:shadow-[0_10px_26px_-12px_rgba(0,0,0,0.55)]'
-  } ${isDone ? 'opacity-70' : ''} ${menuOpen || dragging ? 'z-50' : ''}`
+      ? 'z-50 cursor-grabbing shadow-[0_20px_40px_-8px_rgba(0,0,0,0.65)] ring-1 ring-white/10'
+      : 'cursor-pointer shadow-[0_1.5px_4px_rgba(0,0,0,0.35)] hover:bg-paper-200/60 hover:-translate-y-0.5 hover:shadow-[0_8px_18px_-6px_rgba(0,0,0,0.55)] transition-[background-color,box-shadow,transform] duration-150'
+  } ${isDone ? 'opacity-65' : ''} ${menuOpen || dragging ? 'z-50' : ''}`
 }
 
 function ReorderableBoardCard({
@@ -148,34 +156,72 @@ function ReorderableBoardCard({
   const longPress = useLongPressDrag()
   const { isTouch, isDragging } = longPress
   const isDone = task.done || task.status === 'done'
+  const isDraggingRef = useRef(false)
+  const dragDistanceRef = useRef(0)
+
   return (
     <Reorder.Item
       value={task}
+      drag={true}
       dragListener={!isTouch}
       dragControls={longPress.controls}
       onDragStart={() => {
+        isDraggingRef.current = true
+        dragDistanceRef.current = 0
         longPress.onDragStart()
         onDragStart(task)
       }}
-      onDrag={(_, info) => onDrag(task, info.point)}
+      onDrag={(_, info) => {
+        dragDistanceRef.current += Math.hypot(info.delta.x, info.delta.y)
+        onDrag(task, info.point)
+      }}
       onDragEnd={(_, info) => {
         longPress.onDragEnd()
         onDragEnd(task, info.point)
+        setTimeout(() => {
+          isDraggingRef.current = false
+          dragDistanceRef.current = 0
+        }, 300)
+      }}
+      onClickCapture={(e) => {
+        if (isDraggingRef.current || dragDistanceRef.current > 5) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
       }}
       {...(isTouch ? longPress.dragProps : {})}
-      initial={{ opacity: 0, y: 6, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.95, y: -4 }}
+      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: -6 }}
       transition={{
-        layout: { type: 'spring', stiffness: 500, damping: 34 },
+        layout: SPRINGS.cardDrop,
         opacity: { duration: 0.16 },
         y: { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
         scale: { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
+        rotate: SPRINGS.cardDrop,
       }}
       whileHover={isDragging ? undefined : { y: -2, transition: { duration: 0.12 } }}
+      whileDrag={{
+        scale: 1.03,
+        rotate: -1,
+        boxShadow:
+          '0 20px 40px -8px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.08)',
+        zIndex: 50,
+        transition: SPRINGS.cardLift,
+      }}
       className={`list-none ${cardSurfaceClass(isDone, isDragging, menuOpen)} coarse:select-none coarse:[-webkit-touch-callout:none]`}
     >
-      <div className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-2.5`} onClick={onOpen}>
+      <div
+        className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-2.5`}
+        onClick={(e) => {
+          if (isDraggingRef.current || dragDistanceRef.current > 5) {
+            e.preventDefault()
+            e.stopPropagation()
+            return
+          }
+          onOpen()
+        }}
+      >
         {children}
       </div>
     </Reorder.Item>
@@ -194,16 +240,123 @@ export default function BoardView({
   onMove,
   onOpenCreateModal,
   onReorderColumnTasks,
-  weekStartsOn = 'monday',
+  onAddTask,
+  onEditDetails,
+  weekStartsOn: _weekStartsOn = 'monday',
 }: BoardViewProps) {
+  const isDesktop = useIsDesktop()
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null)
+  const [activeDragTask, setActiveDragTask] = useState<Task | null>(null)
   const [showOlderDone, setShowOlderDone] = useState(false)
-  const [detailsTaskId, setDetailsTaskId] = useState<string | null>(null)
   const [menuDirectionMap, setMenuDirectionMap] = useState<Record<string, 'up' | 'down'>>({})
   const [activeMobileCol, setActiveMobileCol] = useState<TaskStatus>('todo')
+  const [addingState, setAddingState] = useState<{ colId: TaskStatus; position: 'top' | 'bottom' } | null>(null)
+  const [inlineTitle, setInlineTitle] = useState('')
+  const inlineInputRef = useRef<HTMLInputElement>(null)
+
+  const parsedNlp = parseTaskInput(inlineTitle)
+
+  const handleCommitCard = (colId: TaskStatus) => {
+    const trimmed = inlineTitle.trim()
+    if (!trimmed) return
+    const parsed = parseTaskInput(trimmed)
+    onAddTask?.({
+      title: parsed.title,
+      dueDate: parsed.dueDate,
+      priority: parsed.priority,
+      listId: board.id,
+      status: colId,
+    })
+    setInlineTitle('')
+    setTimeout(() => inlineInputRef.current?.focus(), 30)
+  }
+
+  const renderCardComposer = (colId: TaskStatus, position: 'top' | 'bottom') => {
+    if (addingState?.colId !== colId || addingState.position !== position) return null
+
+    return (
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          handleCommitCard(colId)
+        }}
+        className="rounded-xl bg-paper-100 p-3 shadow-xs ring-1 ring-pine-500/50 border border-paper-200/50 my-1"
+      >
+        <input
+          ref={inlineInputRef}
+          type="text"
+          autoFocus
+          value={inlineTitle}
+          onChange={(e) => setInlineTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setAddingState(null)
+              setInlineTitle('')
+            } else if (e.key === 'Enter' && e.shiftKey) {
+              e.preventDefault()
+              onOpenCreateModal?.(board.id, colId)
+              setAddingState(null)
+              setInlineTitle('')
+            }
+          }}
+          placeholder="Card title… (e.g. launch v1 tomorrow !high)"
+          className="w-full bg-transparent text-body font-medium text-ink-900 placeholder:text-ink-400 focus:outline-none"
+        />
+        <div className="mt-2.5 flex items-center justify-between border-t border-paper-200/40 pt-2 text-caption">
+          <div className="flex items-center gap-1.5 min-h-[22px]">
+            {parsedNlp.dueDate && (
+              <span className="inline-flex items-center gap-1 rounded bg-pine-500/15 px-1.5 py-0.5 text-micro font-medium text-pine-300">
+                <CalendarIcon className="size-3" />
+                {formatDue(parsedNlp.dueDate)}
+              </span>
+            )}
+            {parsedNlp.priority && (
+              <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-micro font-medium text-amber-300 capitalize">
+                <FlagIcon className="size-3" />
+                {parsedNlp.priority}
+              </span>
+            )}
+            {!parsedNlp.dueDate && !parsedNlp.priority && isDesktop && (
+              <span className="hidden md:inline text-micro text-ink-400">↵ Enter saves, Shift+Enter expands</span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                setAddingState(null)
+                setInlineTitle('')
+              }}
+              className="rounded-md px-2 py-0.5 text-caption text-ink-500 hover:bg-paper-200 hover:text-ink-800 transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onOpenCreateModal?.(board.id, colId)
+                setAddingState(null)
+                setInlineTitle('')
+              }}
+              title={isDesktop ? 'Expand to full modal (Shift+Enter)' : 'Expand to full modal'}
+              className="rounded-md px-1.5 py-0.5 text-caption text-ink-500 hover:bg-paper-200 hover:text-ink-800 transition-colors cursor-pointer"
+            >
+              Expand
+            </button>
+            <button
+              type="submit"
+              disabled={!inlineTitle.trim()}
+              className="rounded-md bg-pine-600 px-2.5 py-0.5 text-caption font-semibold text-[#fbf9f5] hover:bg-pine-700 disabled:opacity-40 transition-colors cursor-pointer"
+            >
+              Add
+            </button>
+          </div>
+        </div>
+      </form>
+    )
+  }
 
   const columnsAreaRef = useRef<HTMLDivElement>(null)
-  const detailsTask = detailsTaskId ? tasks.find((t) => t.id === detailsTaskId) ?? null : null
 
   const scrollToColumn = (colId: TaskStatus) => {
     setActiveMobileCol(colId)
@@ -230,26 +383,47 @@ export default function BoardView({
     if (!area) return null
     const clientX = point.x - (window.scrollX || 0)
     const clientY = point.y - (window.scrollY || 0)
+    const areaRect = area.getBoundingClientRect()
+
+    // Check if within vertical bounds of the Kanban board with generous tolerance
+    if (clientY < areaRect.top - 60 || clientY > areaRect.bottom + 120) {
+      return null
+    }
+
     const cols = area.querySelectorAll<HTMLElement>('[data-col]')
     for (const el of Array.from(cols)) {
       const r = el.getBoundingClientRect()
-      if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+      if (clientX >= r.left && clientX <= r.right) {
         return (el.dataset.col as TaskStatus) ?? null
       }
     }
     return null
   }
 
+  const handleCardDragStart = (task: Task) => {
+    setActiveDragTask(task)
+    triggerHaptic('selection')
+  }
+
   const handleCardDrag = (_task: Task, point: DragPoint) => {
     const over = findColumnAt(point)
-    setDragOverCol((prev) => (prev === over ? prev : over))
+    setDragOverCol((prev) => {
+      if (prev !== over) {
+        if (over) triggerHaptic('selection')
+        return over
+      }
+      return prev
+    })
   }
 
   const handleCardDragEnd = (task: Task, point: DragPoint) => {
     const target = findColumnAt(point)
     setDragOverCol(null)
+    setActiveDragTask(null)
     if (!target) return
     if (target === taskStatusOf(task)) return
+
+    triggerHaptic(target === 'done' ? 'success' : 'selection')
     onUpdate(task.id, {
       status: target,
       done: target === 'done',
@@ -258,6 +432,8 @@ export default function BoardView({
   }
 
   const handleToggleClick = (_e: MouseEvent<HTMLButtonElement>, task: Task) => {
+    const isDone = task.done || task.status === 'done'
+    triggerHaptic(isDone ? 'selection' : 'success')
     onToggle(task.id)
   }
 
@@ -368,9 +544,9 @@ export default function BoardView({
                   initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
-                  transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                  transition={SPRINGS.popover}
                   style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                  className={`absolute right-0 z-50 w-64 max-h-[min(360px,75vh)] overflow-y-auto rounded-2xl border border-paper-200/80 bg-paper-100/95 p-1.5 text-small shadow-2xl backdrop-blur-md [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                  className={`glass-menu absolute right-0 z-50 w-64 max-h-[min(360px,75vh)] overflow-y-auto rounded-2xl p-1.5 text-small [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                     menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
                   }`}
                   role="menu"
@@ -406,7 +582,7 @@ export default function BoardView({
                     }}
                     className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
                       !t.done && t.status === 'in_progress'
-                        ? 'bg-amber-600/20 font-semibold text-amber-600 shadow-xs'
+                        ? 'bg-amber-600/20 font-semibold text-amber-600 ring-1 ring-amber-600/30 shadow-xs'
                         : 'text-ink-500 hover:bg-amber-500/10 hover:text-amber-600'
                     }`}
                   >
@@ -423,7 +599,7 @@ export default function BoardView({
                     }}
                     className={`cursor-pointer rounded-lg px-1.5 py-1.5 text-caption font-medium whitespace-nowrap text-center transition-all ${
                       t.done || t.status === 'done'
-                        ? 'bg-pine-500/20 font-semibold text-pine-400 shadow-xs'
+                        ? 'bg-pine-500/15 font-semibold text-pine-600 ring-1 ring-pine-500/30 shadow-xs dark:text-pine-400'
                         : 'text-ink-500 hover:bg-pine-500/15 hover:text-pine-400'
                     }`}
                   >
@@ -584,13 +760,13 @@ export default function BoardView({
                 <motion.span
                   layoutId="board-mobile-segment"
                   className="absolute inset-0 rounded-full bg-paper-200 shadow-xs"
-                  transition={{ type: 'spring', stiffness: 500, damping: 34 }}
+                  transition={SPRINGS.liquidPill}
                 />
               )}
-              <span className="relative flex items-center justify-center gap-1.5">
-                <span className={`size-1.5 rounded-full ${c.dot}`} />
-                <span>{c.label}</span>
-                <span className="text-caption tabular-nums opacity-70">{count}</span>
+              <span className="relative flex min-w-0 items-center justify-center gap-1.5">
+                <span className={`size-1.5 shrink-0 rounded-full ${c.dot}`} />
+                <span className="min-w-0 truncate">{c.label}</span>
+                <span className="shrink-0 text-caption tabular-nums opacity-70">{count}</span>
               </span>
             </button>
           )
@@ -600,7 +776,7 @@ export default function BoardView({
       {/* Columns */}
       <div
         ref={columnsAreaRef}
-        className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-3 md:gap-5 md:overflow-visible md:px-0 md:pb-0"
+        className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-6 sm:px-6 md:mx-0 md:grid md:grid-cols-3 md:gap-6 md:overflow-visible md:px-0 md:pb-0 max-w-[1240px]"
       >
         {COLUMNS.map((col) => {
           const colTasks = colTasksFor(col.id)
@@ -615,39 +791,88 @@ export default function BoardView({
               : []
 
           const isOver = dragOverCol === col.id
+          const isSourceCol = activeDragTask ? taskStatusOf(activeDragTask) === col.id : false
+          const isTargetCol = isOver && activeDragTask !== null && !isSourceCol
 
           return (
             <section
               key={col.id}
               data-col={col.id}
-              className={`flex min-h-[240px] min-w-[86vw] shrink-0 snap-center flex-col rounded-2xl border transition-colors duration-200 sm:min-w-[440px] md:min-w-0 md:snap-none ${
-                isOver ? 'border-pine-500/40 bg-pine-50/25' : 'border-transparent'
+              className={`flex min-h-[280px] min-w-[86vw] shrink-0 snap-center flex-col rounded-2xl transition-colors duration-150 sm:min-w-[340px] md:min-w-0 md:snap-none ${
+                isTargetCol ? 'bg-paper-100/35' : isOver ? 'bg-paper-100/20' : ''
               }`}
             >
-              {/* Column header */}
-              <div className="mb-3 flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <span className={`size-2 rounded-full ${col.dot}`} />
-                  <h3 className="text-small font-semibold uppercase tracking-[0.08em] text-ink-500">
-                    {col.label}
-                  </h3>
-                  <span className="rounded-md bg-paper-100 px-1.5 py-0.5 text-caption font-medium tabular-nums text-ink-400">
-                    {colTasks.length}
-                  </span>
+              {/* Column header (hidden on mobile for the active snapped column — the pill switcher already shows it) */}
+              <div className="mb-3">
+                <div className={`flex items-center justify-between px-1 pb-2 ${
+                  activeMobileCol === col.id ? 'md:flex hidden' : ''
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`size-2 rounded-full ${col.dot}`} />
+                    <h3 className="text-body font-medium text-ink-900">
+                      {col.label}
+                    </h3>
+                    <span className="text-caption font-mono tabular-nums text-ink-400">
+                      {colTasks.length}
+                    </span>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      setAddingState({ colId: col.id, position: 'top' })
+                      setInlineTitle('')
+                      setTimeout(() => inlineInputRef.current?.focus(), 40)
+                    }}
+                    aria-label={`Add card to top of ${col.label}`}
+                    title={`Add card to top of ${col.label}`}
+                    className="rounded-lg p-1 text-ink-400 transition-colors hover:bg-paper-100 hover:text-ink-900 cursor-pointer"
+                  >
+                    <PlusIcon className="size-3.5" />
+                  </motion.button>
                 </div>
-                <motion.button
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => onOpenCreateModal?.(board.id, col.id)}
-                  aria-label={`Add task to ${col.label}`}
-                  className="rounded-lg p-1 text-ink-400 transition-colors hover:bg-paper-100 hover:text-ink-900"
-                >
-                  <PlusIcon className="size-4" />
-                </motion.button>
+                <div className="h-px w-full bg-paper-200/50" />
               </div>
 
               {/* Cards */}
               <div className="flex flex-1 flex-col gap-2.5">
+                {/* Top card composer */}
+                {renderCardComposer(col.id, 'top')}
+
+                {/* Subtle Destination Landing Slot */}
+                <AnimatePresence>
+                  {isTargetCol && (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                      animate={{ opacity: 1, height: 56, marginBottom: 8 }}
+                      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                      transition={SPRINGS.snappy}
+                      className="rounded-xl border border-dashed border-paper-300/60 bg-paper-100/25"
+                    />
+                  )}
+                </AnimatePresence>
+
+                {/* Empty column quiet whisper */}
+                {colTasks.length === 0 && addingState?.colId !== col.id && !isTargetCol && (
+                  <div className="flex flex-col items-center justify-center py-10 px-2 text-center">
+                    <p className="font-sans text-small text-ink-500">
+                      {col.emptyWhisper}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddingState({ colId: col.id, position: 'top' })
+                        setInlineTitle('')
+                        setTimeout(() => inlineInputRef.current?.focus(), 40)
+                      }}
+                      className="mt-2 text-caption font-medium text-pine-400 hover:text-pine-300 transition-colors cursor-pointer"
+                    >
+                      + Add a card
+                    </button>
+                  </div>
+                )}
+
                 <Reorder.Group
                   axis="y"
                   values={recentTasks}
@@ -669,9 +894,9 @@ export default function BoardView({
                         menuOpen={menu?.kind === 'task' && menu.id === t.id}
                         onOpen={() => {
                           onMenu(null)
-                          setDetailsTaskId(t.id)
+                          onEditDetails?.(t)
                         }}
-                        onDragStart={() => {}}
+                        onDragStart={() => handleCardDragStart(t)}
                         onDrag={handleCardDrag}
                         onDragEnd={handleCardDragEnd}
                       >
@@ -686,7 +911,7 @@ export default function BoardView({
                     <button
                       type="button"
                       onClick={() => setShowOlderDone((prev) => !prev)}
-                      className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-caption font-medium text-ink-400 transition-colors hover:bg-paper-100 hover:text-ink-700"
+                      className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-caption font-medium text-ink-400 transition-colors hover:bg-paper-100 hover:text-ink-700 cursor-pointer"
                     >
                       <span>
                         Older completed ({olderTasks.length})
@@ -711,7 +936,7 @@ export default function BoardView({
                               key={t.id}
                               onClick={() => {
                                 onMenu(null)
-                                setDetailsTaskId(t.id)
+                                onEditDetails?.(t)
                               }}
                               className={cardSurfaceClass(isDone, false, menuOpen)}
                             >
@@ -723,53 +948,30 @@ export default function BoardView({
                     )}
                   </div>
                 )}
-              </div>
 
-              {/* Quick add */}
-              {colTasks.length === 0 ? (
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => onOpenCreateModal?.(board.id, col.id)}
-                  className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-paper-200/70 py-6 text-body font-medium text-ink-400 transition-colors hover:border-pine-500/40 hover:bg-pine-50/20 hover:text-pine-400"
-                >
-                  <PlusIcon className="size-3.5" />
-                  Add task
-                </motion.button>
-              ) : (
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => onOpenCreateModal?.(board.id, col.id)}
-                  className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-small font-medium text-ink-400/80 transition-colors hover:bg-paper-100/60 hover:text-ink-700"
-                >
-                  <PlusIcon className="size-3.5" />
-                  Add task
-                </motion.button>
-              )}
+                {/* Bottom Add Card Button when column has tasks */}
+                {colTasks.length > 0 && addingState?.colId !== col.id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddingState({ colId: col.id, position: 'bottom' })
+                      setInlineTitle('')
+                      setTimeout(() => inlineInputRef.current?.focus(), 40)
+                    }}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-lg py-2 text-small font-medium text-ink-400/70 hover:bg-paper-100/60 hover:text-ink-700 transition-colors cursor-pointer"
+                  >
+                    <PlusIcon className="size-3.5" />
+                    <span>Add card</span>
+                  </button>
+                )}
+
+                {/* Bottom card composer */}
+                {renderCardComposer(col.id, 'bottom')}
+              </div>
             </section>
           )
         })}
       </div>
-
-      <AnimatePresence>
-        {detailsTask && (
-          <BoardCardDetails
-            key={detailsTask.id}
-            task={detailsTask}
-            boardName={board.name}
-            collections={collections}
-            weekStartsOn={weekStartsOn}
-            onClose={() => setDetailsTaskId(null)}
-            onUpdate={onUpdate}
-            onDelete={() => {
-              onDelete(detailsTask.id)
-              setDetailsTaskId(null)
-            }}
-            onMove={onMove}
-          />
-        )}
-      </AnimatePresence>
     </div>
   )
 }

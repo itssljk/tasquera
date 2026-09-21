@@ -2,29 +2,38 @@
 
 @theme {
   --font-sans: "Figtree Variable", "Figtree", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", Georgia, Cambria, serif;
+  --font-display: "Instrument Serif", Georgia, Cambria, serif;
 
-  --color-paper-50: #131211;
-  --color-paper-100: #1a1816;
-  --color-paper-200: #25221e;
-  --color-paper-300: #36312a;
-  --color-paper-400: #4b443b;
+  --color-paper-50: #181614;
+  --color-paper-100: #1e1c19;
+  --color-paper-200: #282522;
+  --color-paper-300: #38342f;
+  --color-paper-400: #4e4840;
 
   --color-ink-900: #f3eee7;
   --color-ink-800: #e6ded0;
   --color-ink-700: #cfc6b8;
-  --color-ink-600: #b3a996;
-  --color-ink-500: #93897b;
-  --color-ink-400: #685f52;
-  --color-ink-300: #4f483e;
+  --color-ink-600: #b8af9f;
+  --color-ink-500: #a89f92;
+  --color-ink-400: #a09687; /* Raised contrast >= 4.5:1 against canvas & surfaces */
+  --color-ink-300: #554d42;
 
-  --color-pine-800: #123726;
-  --color-pine-700: #1b5239;
-  --color-pine-600: #2b8256;
-  --color-pine-500: #38a16c;
+  --color-pine-800: #0f3020;
+  --color-pine-700: #17452d;
+  --color-pine-600: #2ea069;
+  --color-pine-500: #38b577;
   --color-pine-400: #4ec484;
   --color-pine-300: #86efac;
-  --color-pine-100: #183628;
-  --color-pine-50: #132b20;
+  --color-pine-100: #183e2c;
+  --color-pine-50: #132f22;
+
+  /* Semantic tokens */
+  --color-on-accent: #181614; /* Dark check on mint in dark mode (5.55:1 contrast) */
+  --color-border-sidebar: #38342f; /* Visible hairline divider separating sidebar & canvas */
+  --color-border-dashed: #756c60; /* Distinct dashed affordance (>= 3:1 non-text contrast) */
+  --color-text-muted: #a09687; /* Guaranteed >= 4.5:1 text contrast */
+  --color-text-placeholder: #a09687; /* Guaranteed >= 4.5:1 text contrast */
 
   --color-terra-600: #d95a3f;
   --color-terra-500: #e0654a;
@@ -77,7 +86,7 @@ html[data-theme="light"],
   --color-ink-700: #4b443b;
   --color-ink-600: #685f52;
   --color-ink-500: #74695c;
-  --color-ink-400: #988c7d;
+  --color-ink-400: #6b6255; /* Raised contrast >= 4.5:1 against canvas & surfaces */
   --color-ink-300: #cfc6b8;
 
   --color-pine-800: #0d281c;
@@ -88,6 +97,13 @@ html[data-theme="light"],
   --color-pine-300: #4ec484;
   --color-pine-100: #e0ece5;
   --color-pine-50: #edf5f1;
+
+  /* Semantic tokens */
+  --color-on-accent: #fbf9f5; /* Light check on deep pine in light mode (8.61:1 contrast) */
+  --color-border-sidebar: #d6ccbc; /* Visible hairline divider separating sidebar & canvas */
+  --color-border-dashed: #b8ab96; /* Distinct dashed affordance */
+  --color-text-muted: #6b6255; /* Guaranteed >= 4.5:1 text contrast */
+  --color-text-placeholder: #6b6255; /* Guaranteed >= 4.5:1 text contrast */
 
   --color-terra-600: #b9381e;
   --color-terra-50: #faebe8;
@@ -112,10 +128,18 @@ html[data-theme="light"],
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     @apply bg-paper-50 font-sans text-ink-900 transition-colors duration-200;
+    overscroll-behavior-y: contain;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a, input, [role="button"] {
+    touch-action: manipulation;
   }
 
   ::selection {
@@ -199,6 +223,64 @@ html[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-i
   animation: pop-in 0.2s var(--ease-spring) both;
 }
 
+/* Archival Workstation Mobile Materials */
+@utility glass-pill {
+  background: color-mix(in srgb, var(--color-paper-100) 90%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-paper-300);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--color-ink-900) 4%, transparent),
+    0 8px 24px -4px rgba(0, 0, 0, 0.4);
+}
+
+@utility glass-dock {
+  background: color-mix(in srgb, var(--color-paper-100) 94%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-paper-300);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--color-ink-900) 4%, transparent),
+    0 12px 32px -6px rgba(0, 0, 0, 0.55),
+    0 2px 6px -1px rgba(0, 0, 0, 0.35);
+}
+
+@utility glass-sheet {
+  background: color-mix(in srgb, var(--color-paper-100) 97%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--color-paper-300);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--color-ink-900) 5%, transparent),
+    0 -12px 36px -6px rgba(0, 0, 0, 0.6);
+}
+
+@utility glass-modal {
+  background: color-mix(in srgb, var(--color-paper-100) 96%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-paper-300);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--color-ink-900) 5%, transparent),
+    0 20px 48px -10px rgba(0, 0, 0, 0.65);
+}
+
+@utility glass-menu {
+  background: color-mix(in srgb, var(--color-paper-100) 98%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-paper-300);
+  box-shadow:
+    inset 0 1px 0 0 color-mix(in srgb, var(--color-ink-900) 4%, transparent),
+    0 16px 36px -8px rgba(0, 0, 0, 0.6);
+}
+
+@utility glass-card {
+  background: var(--color-paper-100);
+  border: 1px solid var(--color-paper-200);
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -208,4 +290,5 @@ html[data-theme="light"] input[type="datetime-local"]::-webkit-calendar-picker-i
     transition-duration: 0.01ms !important;
   }
 }
+
 

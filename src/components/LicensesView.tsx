@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { LogoMark } from './icons'
-import { APP_NAME, APP_VERSION_DISPLAY } from '../constants'
+import { APP_NAME, APP_VERSION, APP_VERSION_NAME } from '../constants'
 import notices from '../../THIRD_PARTY_NOTICES.md?raw'
 
 export default function LicensesView({ onBack }: { onBack?: () => void }) {
@@ -29,7 +29,7 @@ export default function LicensesView({ onBack }: { onBack?: () => void }) {
           ← Back to Settings
         </button>
         <span className="rounded-md bg-paper-200 px-2 py-0.5 font-mono text-caption font-medium text-pine-500">
-          v{APP_VERSION_DISPLAY}
+          v{APP_VERSION}
         </span>
       </div>
 
@@ -40,7 +40,7 @@ export default function LicensesView({ onBack }: { onBack?: () => void }) {
             Open Source Licenses
           </h1>
           <p className="mt-1.5 text-small text-ink-500">
-            {APP_NAME} v{APP_VERSION_DISPLAY} · Third-party software bundled with this app
+            {APP_NAME} {APP_VERSION_NAME} · Third-party software bundled with this app
           </p>
         </div>
       </div>

@@ -14,8 +14,10 @@ a copy is placed in the production build output (`dist/THIRD_PARTY_NOTICES.md`).
 | Framer Motion | 13.x | MIT | Framer B.V. |
 | canvas-confetti | 1.9.x | ISC | Kiril Vatev |
 | Figtree (Variable) | 5.x | SIL OFL 1.1 | The Figtree Project Authors |
+| @capacitor/app | 8.x | MIT | Ionic |
 | @capacitor/core | 8.x | MIT | Drifty Co. (2017-present) |
 | @capacitor/filesystem | 8.x | MIT | Ionic (2025) |
+| @capacitor/haptics | 8.x | MIT | Ionic |
 | @capacitor/local-notifications | 8.x | MIT | Ionic |
 | @capacitor/status-bar | 8.x | MIT | Ionic |
 | tslib | 2.x | 0BSD | Microsoft Corporation |
@@ -189,8 +191,8 @@ SOFTWARE.
 ## MIT License - Capacitor
 
 `@capacitor/core` and `@capacitor/android` are distributed under the MIT
-License, `Copyright (c) 2017-present Drifty Co.` `@capacitor/filesystem`,
-`@capacitor/local-notifications`, and `@capacitor/status-bar` are distributed under the MIT
+License, `Copyright (c) 2017-present Drifty Co.` `@capacitor/app`, `@capacitor/filesystem`,
+`@capacitor/haptics`, `@capacitor/local-notifications`, and `@capacitor/status-bar` are distributed under the MIT
 License, `Copyright (c) Ionic` / `Copyright (c) 2020-present Ionic` / `Copyright (c) 2021-present Ionic`.
 `@capacitor/android` is compiled into the Android APK; the core packages are bundled into the web assets.
 

@@ -1,6 +1,8 @@
 # Tasquera
-[![Tasquera Docs](https://img.shields.io/badge/Tasquera-Docs-blue)](https://tasquera-docs.pages.dev/)
+
 A calm, focused task manager built to help you organize your work without the noise.
+
+Use the web version directly at [tasquera.pages.dev](https://tasquera.pages.dev/).
 
 ## Features
 
@@ -35,12 +37,16 @@ npm run test
 
 # Type-check and production build
 npm run build
+
+# Android development
+npm run build:android
+npm run cap:open
 ```
 
 ## Platform Support
 
-- **Web / PWA**: Installable as a standalone Progressive Web App directly from your browser.
-- **Android**: Built with Capacitor, supporting OS-level notifications and local background storage sync.
+- **Web / PWA**: Available at [tasquera.pages.dev](https://tasquera.pages.dev/) and installable as a standalone Progressive Web App directly from your browser.
+- **Android**: Built with Capacitor, supporting OS-level notifications and local background storage sync. Download the official APK from [GitHub Releases](https://github.com/itssljk/tasquera/releases).
 
 ## Tech Stack
 
@@ -52,9 +58,9 @@ npm run build
 
 ## Data & Privacy
 
-All data is stored strictly on your local device — using your browser's local storage on the web or isolated app storage on Android. Your data is entirely yours; no external servers, analytics, or telemetry are used.
+All data is stored strictly on your local device, using your browser's local storage on the web or isolated app storage on Android. Your data is entirely yours; no external servers, analytics, or telemetry are used.
 
 ## License
 
-[MIT](LICENSE) — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled open-source licenses and attribution.
+[MIT](LICENSE). See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled open-source licenses and attribution.
 

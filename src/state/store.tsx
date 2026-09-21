@@ -64,6 +64,7 @@ export interface StoreValue {
   canUndo: boolean
   canRedo: boolean
   undoToastMessage: string | null
+  showToast: (message: string) => void
   undo: () => void
   redo: () => void
   clearUndoToast: () => void
@@ -191,6 +192,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     undo,
     redo,
     clearUndoToast: () => setUndoToastMessage(null),
+    showToast: (message) => setUndoToastMessage(message),
     updateSettings: (patch) =>
       commitState((s) => ({
         ...s,
@@ -249,11 +251,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           let next: Task
           if (wasDone) {
             next = { ...t, done: false, status: 'todo', completedAt: null, updatedAt: Date.now() }
-          } else if (t.status === 'in_progress') {
+          } else {
             next = { ...t, done: true, status: 'done', completedAt: Date.now(), updatedAt: Date.now() }
             becameDone = true
-          } else {
-            next = { ...t, done: false, status: 'in_progress', completedAt: null, updatedAt: Date.now() }
           }
           if (!wasDone && next.status === 'done' && next.recurrence) {
             spawned = nextOccurrenceTask(next, next.recurrence)
@@ -266,12 +266,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return spawned ? { ...s, tasks: [spawned, ...tasks] } : { ...s, tasks }
       }),
 
-    deleteTask: (id) =>
+    deleteTask: (id) => {
       commitState((s) => ({
         ...s,
         tasks: s.tasks.filter((t) => t.id !== id),
         tombstones: withTombstone(s.tombstones ?? [], { id, kind: 'task', deletedAt: Date.now() }),
-      })),
+      }))
+      setUndoToastMessage('Task deleted')
+    },
 
     updateTask: (id, patch) =>
       commitState((s) => {

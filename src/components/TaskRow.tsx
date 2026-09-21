@@ -1,22 +1,21 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { MouseEvent } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
 import type { Transition } from 'framer-motion'
 import { useLongPressDrag } from '../lib/useLongPressDrag'
 import { formatDate, formatDue, isOverdue } from '../lib/date'
 import { recurrenceLabel } from '../lib/recurrence'
+import { SPRINGS } from '../lib/motion'
+import { triggerHaptic } from '../lib/platform'
 import type { Collection, Task } from '../types'
 import {
   CalendarIcon,
   CheckIcon,
-  ChevronIcon,
   EllipsisVerticalIcon,
-  ExternalLinkIcon,
   FlagIcon,
   LinkIcon,
   NotesIcon,
   PencilIcon,
-  PlusIcon,
   RepeatIcon,
   SubtaskIcon,
   TrashIcon,
@@ -31,8 +30,8 @@ function CheckCircle({ done, status }: { done: boolean; status?: string }) {
       viewBox="0 0 22 22"
       className="size-[22px]"
       aria-hidden="true"
-      whileTap={{ scale: 0.84 }}
-      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+      whileTap={{ scale: 0.82 }}
+      transition={SPRINGS.snappy}
     >
       <motion.circle
         cx="11"
@@ -42,17 +41,17 @@ function CheckCircle({ done, status }: { done: boolean; status?: string }) {
         stroke={isDone ? 'var(--color-pine-600)' : isInProgress ? 'var(--color-amber-600)' : 'var(--color-ink-400)'}
         strokeWidth="2"
         animate={{
-          scale: isDone ? [1, 1.18, 1] : 1,
+          scale: isDone ? [1, 1.25, 0.95, 1] : 1,
           fill: isDone ? 'var(--color-pine-600)' : isInProgress ? 'var(--color-amber-600)' : 'transparent',
           stroke: isDone ? 'var(--color-pine-600)' : isInProgress ? 'var(--color-amber-600)' : 'var(--color-ink-400)',
         }}
-        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+        transition={isDone ? SPRINGS.bouncy : SPRINGS.snappy}
       />
       {isDone ? (
         <motion.path
           d="M6.75 11.5l2.9 2.9 5.6-5.8"
           fill="none"
-          stroke="#FBF9F5"
+          stroke="var(--color-on-accent)"
           strokeWidth="2.3"
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -62,12 +61,20 @@ function CheckCircle({ done, status }: { done: boolean; status?: string }) {
             opacity: 1,
           }}
           transition={{
-            pathLength: { duration: 0.2, ease: [0.16, 1, 0.3, 1] },
+            pathLength: { duration: 0.22, ease: [0.16, 1, 0.3, 1] },
             opacity: { duration: 0.1 },
           }}
         />
       ) : isInProgress ? (
-        <circle cx="11" cy="11" r="3.2" fill="#FBF9F5" />
+        <motion.circle
+          cx="11"
+          cy="11"
+          r="3.2"
+          fill="var(--color-on-accent)"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={SPRINGS.bouncy}
+        />
       ) : null}
     </motion.svg>
   )
@@ -105,17 +112,18 @@ export default function TaskRow(props: TaskRowProps) {
     onToggleMenu,
     onToggle,
     onDelete,
-    onUpdate,
+    onUpdate: _onUpdate,
     onMove,
     onEditDetails,
   } = props
 
-  const [expanded, setExpanded] = useState(false)
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState('')
-  const [showAddLink, setShowAddLink] = useState(false)
-  const [newLinkUrl, setNewLinkUrl] = useState('')
-  const [newLinkTitle, setNewLinkTitle] = useState('')
   const [menuDirection, setMenuDirection] = useState<'up' | 'down'>('down')
+  const [swipeOffset, setSwipeOffset] = useState(0)
+  const swipeHapticRef = useRef<{ rightTriggered: boolean; deleteTriggered: boolean; editTriggered: boolean }>({
+    rightTriggered: false,
+    deleteTriggered: false,
+    editTriggered: false,
+  })
   const longPress = useLongPressDrag()
   const { isTouch, isDragging } = longPress
 
@@ -137,51 +145,8 @@ export default function TaskRow(props: TaskRowProps) {
 
   const handleToggleClick = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
+    triggerHaptic(done ? 'selection' : 'success')
     onToggle(task.id)
-  }
-
-  const handleToggleSubtask = (e: MouseEvent, subtaskId: string) => {
-    e.stopPropagation()
-    if (!task.subtasks) return
-    const newSubtasks = task.subtasks.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s))
-    const allDone = newSubtasks.length > 0 && newSubtasks.every((s) => s.done)
-    let newStatus = task.status
-    if (allDone) {
-      newStatus = 'done'
-    } else if (task.status === 'done' && !allDone) {
-      newStatus = 'in_progress'
-    }
-    onUpdate(task.id, {
-      subtasks: newSubtasks,
-      status: newStatus,
-      done: newStatus === 'done',
-    })
-  }
-
-  const handleAddSubtaskInline = (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = newSubtaskTitle.trim()
-    if (!trimmed) return
-    const newSub = { id: String(Date.now()), title: trimmed, done: false }
-    const updated = [...(task.subtasks || []), newSub]
-    onUpdate(task.id, { subtasks: updated })
-    setNewSubtaskTitle('')
-  }
-
-  const handleAddLinkInline = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newLinkUrl.trim()) return
-    let url = newLinkUrl.trim()
-    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
-    const newLink = {
-      id: String(Date.now()),
-      url,
-      title: newLinkTitle.trim() || url.replace(/^https?:\/\/(www\.)?/, ''),
-    }
-    onUpdate(task.id, { links: [...(task.links || []), newLink] })
-    setNewLinkUrl('')
-    setNewLinkTitle('')
-    setShowAddLink(false)
   }
 
   const subtasksCount = task.subtasks?.length ?? 0
@@ -198,41 +163,160 @@ export default function TaskRow(props: TaskRowProps) {
     !!meta
 
   const rowTransition: Transition = {
-    layout: { type: 'spring', stiffness: 400, damping: 30 },
+    layout: SPRINGS.liquidPill,
     opacity: { duration: 0.18 },
     scale: { duration: 0.18 },
   }
 
-  const rowClass = `group relative flex flex-col rounded-xl px-3 py-2.5 transition-all duration-150 ${
+  const rowClass = `group relative flex flex-col px-3 py-2 transition-colors duration-150 border-b border-paper-200/40 last:border-b-0 ${
     selected
-      ? 'bg-pine-500/10 ring-1 ring-pine-500/35 shadow-2xs'
+      ? 'bg-pine-500/10 rounded-xl ring-1 ring-pine-500/35 shadow-2xs'
       : isKeyboardFocused
-        ? 'bg-paper-100 ring-1 ring-pine-500/50 shadow-2xs'
+        ? 'bg-paper-100 rounded-xl ring-1 ring-pine-500/50 shadow-2xs'
         : done
           ? ''
-          : 'hover:bg-paper-100'
+          : 'hover:bg-paper-100/60 active:bg-paper-100'
   } ${reorderable && !done ? (isTouch ? 'cursor-pointer' : 'cursor-grab active:cursor-grabbing') : ''} ${
     menuOpen ? 'z-50' : 'z-0'
-  } ${isDragging ? 'opacity-60' : ''}`
+  } ${isDragging ? 'opacity-60 rounded-xl' : ''}`
 
   const rowMotionProps = {
     layout: true as const,
     initial: { opacity: 0, y: 8, scale: 0.98 },
     animate: { opacity: 1, y: 0, scale: 1 },
-    exit: { opacity: 0, y: -6, scale: 0.96, height: 0, marginTop: 0, marginBottom: 0 },
+    exit: {
+      opacity: 0,
+      y: -4,
+      scale: 0.98,
+      height: 0,
+      marginTop: 0,
+      marginBottom: 0,
+      paddingTop: 0,
+      paddingBottom: 0,
+      transition: {
+        opacity: { duration: 0.22, delay: done ? 0.8 : 0 },
+        height: { duration: 0.25, delay: done ? 0.85 : 0 },
+        paddingTop: { duration: 0.25, delay: done ? 0.85 : 0 },
+        paddingBottom: { duration: 0.25, delay: done ? 0.85 : 0 },
+        y: { duration: 0.22, delay: done ? 0.8 : 0 },
+      },
+    },
     transition: rowTransition,
     style: { zIndex: menuOpen ? 60 : undefined },
   }
 
   const rowContent = (
-    <>
-      <div className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-3 w-full`}>
+    <div className={`relative w-full rounded-xl ${swipeOffset !== 0 ? 'overflow-hidden' : ''}`}>
+      {/* Two-Tier Swipe Action Background Trays */}
+      <AnimatePresence>
+        {swipeOffset > 8 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-y-0 left-0 right-1/2 flex items-center pl-3.5 rounded-xl bg-pine-600/20 text-pine-400 pointer-events-none z-0"
+          >
+            <motion.div
+              animate={{
+                scale: swipeOffset > 65 ? [1, 1.22, 1.1] : 1,
+              }}
+              transition={SPRINGS.snappy}
+              className="flex items-center gap-1.5 font-semibold text-small"
+            >
+              <CheckIcon className="size-4 stroke-[2.5]" />
+              <span>{done ? 'To Do' : 'Done'}</span>
+            </motion.div>
+          </motion.div>
+        )}
+        {swipeOffset < -8 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`absolute inset-y-0 right-0 left-1/2 flex items-center justify-end pr-3.5 rounded-xl pointer-events-none z-0 transition-colors duration-150 ${
+              swipeOffset < -130 ? 'bg-terra-600/20 text-terra-500' : 'bg-amber-600/20 text-amber-500'
+            }`}
+          >
+            <motion.div
+              animate={{
+                scale: swipeOffset < -130 || (-130 <= swipeOffset && swipeOffset < -60) ? [1, 1.22, 1.1] : 1,
+              }}
+              transition={SPRINGS.snappy}
+              className="flex items-center gap-1.5 font-semibold text-small"
+            >
+              {swipeOffset < -130 ? (
+                <>
+                  <span>Delete</span>
+                  <TrashIcon className="size-4" />
+                </>
+              ) : (
+                <>
+                  <span>Schedule</span>
+                  <CalendarIcon className="size-4" />
+                </>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        drag={isTouch && !isDragging ? 'x' : false}
+        dragDirectionLock
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.28}
+        onDrag={(_, info) => {
+          setSwipeOffset(info.offset.x)
+          if (info.offset.x > 70) {
+            if (!swipeHapticRef.current.rightTriggered) {
+              triggerHaptic('light')
+              swipeHapticRef.current.rightTriggered = true
+            }
+          } else {
+            swipeHapticRef.current.rightTriggered = false
+          }
+
+          if (info.offset.x < -130) {
+            if (!swipeHapticRef.current.deleteTriggered) {
+              triggerHaptic('light')
+              swipeHapticRef.current.deleteTriggered = true
+            }
+          } else {
+            swipeHapticRef.current.deleteTriggered = false
+          }
+
+          if (info.offset.x < -45 && info.offset.x >= -130) {
+            if (!swipeHapticRef.current.editTriggered) {
+              triggerHaptic('light')
+              swipeHapticRef.current.editTriggered = true
+            }
+          } else if (info.offset.x >= -45) {
+            swipeHapticRef.current.editTriggered = false
+          }
+        }}
+        onDragEnd={(_, info) => {
+          setSwipeOffset(0)
+          swipeHapticRef.current = { rightTriggered: false, deleteTriggered: false, editTriggered: false }
+          if (info.offset.x > 70 || (info.offset.x > 35 && info.velocity.x > 500)) {
+            triggerHaptic('success')
+            onToggle(task.id)
+          } else if (info.offset.x < -130 || (info.offset.x < -65 && info.velocity.x < -650)) {
+            triggerHaptic('warning')
+            onDelete(task.id)
+          } else if (info.offset.x < -45) {
+            triggerHaptic('light')
+            onEditDetails?.(task)
+          }
+        }}
+        className="relative z-10 w-full"
+      >
+        <div className={`flex ${hasMeta ? 'items-start' : 'items-center'} gap-2.5 w-full`}>
         {onSelectToggle ? (
           <button
             type="button"
             onClick={(e) => onSelectToggle(task.id, e)}
             aria-label={selected ? `Deselect “${task.title}”` : `Select “${task.title}”`}
-            className={`${hasMeta ? 'mt-0.5' : ''} shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer`}
+            className={`-ml-2 -my-2 flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer ${hasMeta ? 'self-start mt-0' : ''}`}
           >
             <CheckCircle done={done} status={task.status} />
           </button>
@@ -243,12 +327,10 @@ export default function TaskRow(props: TaskRowProps) {
             aria-label={
               done
                 ? `Move “${task.title}” back to To Do`
-                : task.status === 'in_progress'
-                  ? `Move “${task.title}” to Done`
-                  : `Move “${task.title}” to In Progress`
+                : `Mark “${task.title}” as done`
             }
             aria-pressed={done}
-            className={`${hasMeta ? 'mt-0.5' : ''} shrink-0 rounded-full p-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer`}
+            className={`-ml-2 -my-2 flex size-11 shrink-0 items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer ${hasMeta ? 'self-start mt-0' : ''}`}
           >
             <CheckCircle done={done} status={task.status} />
           </button>
@@ -270,23 +352,16 @@ export default function TaskRow(props: TaskRowProps) {
               color: done ? 'var(--color-ink-500)' : 'var(--color-ink-900)',
             }}
             transition={{ duration: 0.2 }}
-            className="relative break-words text-title leading-snug sm:text-title-md"
+            className={`relative break-words text-body-lg font-medium leading-snug sm:text-title transition-all duration-200 ${
+              done ? 'line-through decoration-ink-500/70 decoration-[1.5px]' : ''
+            }`}
           >
             {task.title}
-            {done && (
-              <motion.span
-                initial={{ scaleX: 0 }}
-                animate={{ scaleX: 1 }}
-                exit={{ scaleX: 0 }}
-                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute left-0 top-[52%] h-[1.5px] w-full origin-left bg-ink-500/80"
-              />
-            )}
           </motion.p>
 
           {/* Metadata Indicators */}
           {hasMeta && (
-            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption font-medium text-ink-500">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption font-medium text-ink-500 tabular-nums">
               {/* Priority */}
               {task.priority && task.priority !== 'medium' && (
                 <span
@@ -325,11 +400,11 @@ export default function TaskRow(props: TaskRowProps) {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setExpanded(!expanded)
+                    onEditDetails?.(task)
                   }}
                   title={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
                   aria-label={`Subtasks: ${subtasksDoneCount}/${subtasksCount}`}
-                  className="inline-flex items-center gap-1 text-ink-500 hover:text-ink-800 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
+                  className="inline-flex items-center gap-1 text-ink-500 hover:text-ink-800 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded cursor-pointer"
                 >
                   <SubtaskIcon className="size-3 text-pine-600" />
                   <span className="tabular-nums">{subtasksDoneCount}/{subtasksCount}</span>
@@ -342,11 +417,11 @@ export default function TaskRow(props: TaskRowProps) {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setExpanded(!expanded)
+                    onEditDetails?.(task)
                   }}
                   title="Notes"
                   aria-label="View notes"
-                  className="inline-flex items-center text-ink-400 hover:text-ink-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
+                  className="inline-flex items-center text-ink-400 hover:text-ink-700 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded cursor-pointer"
                 >
                   <NotesIcon className="size-3" />
                 </button>
@@ -358,11 +433,11 @@ export default function TaskRow(props: TaskRowProps) {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation()
-                    setExpanded(!expanded)
+                    onEditDetails?.(task)
                   }}
                   title={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
                   aria-label={`${linksCount} link${linksCount > 1 ? 's' : ''}`}
-                  className="inline-flex items-center gap-1 text-ink-400 hover:text-pine-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded"
+                  className="inline-flex items-center gap-1 text-ink-400 hover:text-pine-500 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-pine-500/40 rounded cursor-pointer"
                 >
                   <LinkIcon className="size-3" />
                   <span className="tabular-nums">{linksCount}</span>
@@ -376,19 +451,17 @@ export default function TaskRow(props: TaskRowProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-0.5">
-          {(task.description || subtasksCount > 0 || linksCount > 0) && (
+          {onEditDetails && (
             <motion.button
               type="button"
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
-              onClick={() => setExpanded(!expanded)}
-              aria-label={expanded ? 'Hide task details' : 'Show task details'}
-              title={expanded ? 'Hide details' : 'Show details'}
-              className={`rounded-lg p-1.5 transition-all duration-150 ${
-                expanded ? 'bg-paper-200 text-pine-600' : 'text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'
-              }`}
+              onClick={() => onEditDetails(task)}
+              aria-label="Edit task details"
+              title="Edit task details"
+              className="hidden md:flex rounded-lg p-1.5 transition-all duration-150 text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100 cursor-pointer"
             >
-              <ChevronIcon className={`size-[18px] transition-transform duration-200 ${expanded ? 'rotate-90 text-pine-600' : ''}`} />
+              <PencilIcon className="size-[16px]" />
             </motion.button>
           )}
           <div className="relative">
@@ -399,7 +472,12 @@ export default function TaskRow(props: TaskRowProps) {
               onClick={handleMenuClick}
               aria-label={`Actions for “${task.title}”`}
               aria-expanded={menuOpen}
-              className="rounded-lg p-1.5 text-ink-400 transition-all duration-150 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100"
+              data-menu-trigger="true"
+              className={`flex size-10 items-center justify-center rounded-xl transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer ${
+                menuOpen
+                  ? 'bg-paper-200 text-ink-700 opacity-100'
+                  : 'text-ink-400 hover:bg-paper-200 hover:text-ink-700 md:opacity-0 md:focus-visible:opacity-100 md:group-hover:opacity-100'
+              }`}
             >
               <EllipsisVerticalIcon className="size-[18px]" />
             </motion.button>
@@ -415,12 +493,12 @@ export default function TaskRow(props: TaskRowProps) {
                     }}
                   />
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4 }}
-                    transition={{ type: 'spring', stiffness: 450, damping: 26 }}
+                    initial={{ opacity: 0, scale: 0.92, y: menuDirection === 'up' ? 6 : -6, filter: 'blur(4px)' }}
+                    animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, scale: 0.94, y: menuDirection === 'up' ? 4 : -4, filter: 'blur(2px)' }}
+                    transition={SPRINGS.popover}
                     style={{ transformOrigin: menuDirection === 'up' ? 'bottom right' : 'top right' }}
-                    className={`absolute right-0 z-50 w-52 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl bg-paper-50/95 p-1.5 shadow-2xl backdrop-blur-md border border-paper-200/90 text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+                    className={`absolute right-0 z-50 w-52 max-h-[min(340px,75vh)] overflow-y-auto rounded-2xl glass-menu p-1.5 text-body [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
                       menuDirection === 'up' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'
                     }`}
                     role="menu"
@@ -503,201 +581,28 @@ export default function TaskRow(props: TaskRowProps) {
               </>
             )}
           </AnimatePresence>
-    </div>
-  </div>
-</div>
-
-  {/* Details Content Drawer */}
-  <AnimatePresence initial={false}>
-    {expanded && (
-      <motion.div
-        initial={{ opacity: 0, height: 0 }}
-        animate={{ opacity: 1, height: 'auto' }}
-        exit={{ opacity: 0, height: 0 }}
-        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full overflow-hidden"
-      >
-        <div
-          className="mt-3 space-y-4 rounded-2xl bg-paper-100/90 p-4 md:p-5 text-body-lg shadow-sm"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Description */}
-          {task.description && (
-            <div className="space-y-1.5">
-              <span className="text-caption font-semibold uppercase tracking-wider text-ink-500">Description</span>
-              <p className="text-body-lg leading-relaxed text-ink-900 whitespace-pre-wrap selection:bg-pine-500/20">{task.description}</p>
-            </div>
-          )}
-
-          {/* Subtasks Section with Animated Progress Bar & Inline Adder */}
-          <div className="space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-caption font-semibold uppercase tracking-wider text-ink-500">
-                Subtasks {subtasksCount > 0 && `(${subtasksDoneCount}/${subtasksCount})`}
-              </span>
-              {subtasksCount > 0 && (
-                <span className="text-small font-semibold text-pine-600">
-                  {Math.round((subtasksDoneCount / subtasksCount) * 100)}%
-                </span>
-              )}
-            </div>
-
-            {subtasksCount > 0 && (
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-paper-200">
-                <motion.div
-                  className="h-full rounded-full bg-pine-600"
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.round((subtasksDoneCount / subtasksCount) * 100)}%` }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                />
-              </div>
-            )}
-
-            {subtasksCount > 0 && (
-              <div className="space-y-1 pt-1">
-                {task.subtasks?.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex min-h-[42px] items-center gap-3 rounded-xl px-2.5 py-2 -mx-1 hover:bg-paper-200/50 transition-colors"
-                  >
-                    <motion.button
-                      type="button"
-                      whileTap={{ scale: 0.88 }}
-                      onClick={(e) => handleToggleSubtask(e, s.id)}
-                      aria-label={`Toggle subtask “${s.title}”`}
-                      className={`flex size-5 shrink-0 items-center justify-center rounded-md transition-colors ${
-                        s.done ? 'bg-pine-600 text-paper-50' : 'border border-ink-400/60 hover:border-pine-500'
-                      }`}
-                    >
-                      {s.done && <CheckIcon className="size-3" />}
-                    </motion.button>
-                    <span className={`text-body-lg leading-snug ${s.done ? 'line-through text-ink-400' : 'text-ink-900'}`}>{s.title}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Inline Subtask Form */}
-            <form onSubmit={handleAddSubtaskInline} className="flex min-h-[42px] items-center gap-2.5 rounded-xl bg-paper-200/40 px-3 py-2 focus-within:bg-paper-200/70 focus-within:ring-1 focus-within:ring-pine-500/30 transition-all">
-              <PlusIcon className="size-4 shrink-0 text-ink-400" />
-              <input
-                type="text"
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                placeholder="Add subtask (press Enter)…"
-                className="w-full bg-transparent text-body-lg text-ink-900 placeholder:text-ink-400 outline-none"
-              />
-            </form>
-          </div>
-
-          {/* Links Section */}
-          <div className="space-y-2.5 pt-1.5 border-t border-paper-200/40">
-            <div className="flex items-center justify-between">
-              <span className="text-caption font-semibold uppercase tracking-wider text-ink-500">Links</span>
-              {!showAddLink && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddLink(true)}
-                  className="text-small font-medium text-pine-500 hover:text-pine-400 inline-flex items-center gap-1 py-1 px-1.5 rounded-md hover:bg-paper-200/40 transition-colors"
-                >
-                  <PlusIcon className="size-3.5" />
-                  <span>Add link</span>
-                </button>
-              )}
-            </div>
-
-            {linksCount > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {task.links?.map((l) => (
-                  <a
-                    key={l.id}
-                    href={l.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex min-h-[38px] items-center gap-2 rounded-xl bg-paper-200/60 px-3 py-2 text-body font-medium text-pine-500 hover:bg-pine-500/15 hover:text-pine-400 transition-colors shadow-2xs"
-                  >
-                    <ExternalLinkIcon className="size-3.5" />
-                    <span>{l.title || l.url}</span>
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {showAddLink && (
-              <form onSubmit={handleAddLinkInline} className="space-y-2 rounded-xl bg-paper-200/40 p-3">
-                <input
-                  type="url"
-                  value={newLinkUrl}
-                  onChange={(e) => setNewLinkUrl(e.target.value)}
-                  placeholder="https://..."
-                  autoFocus
-                  className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-body text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
-                />
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2">
-                  <input
-                    type="text"
-                    value={newLinkTitle}
-                    onChange={(e) => setNewLinkTitle(e.target.value)}
-                    placeholder="Title (optional)"
-                    className="w-full rounded-lg bg-paper-50/80 px-3 py-2 text-body text-ink-900 outline-none placeholder:text-ink-400 focus:ring-1 focus:ring-pine-500/40"
-                  />
-                  <div className="flex items-center justify-end gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddLink(false)}
-                      className="px-3 py-1.5 rounded-lg text-small text-ink-500 hover:text-ink-900 hover:bg-paper-200 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={!newLinkUrl.trim()}
-                      className="rounded-lg bg-pine-600 px-3.5 py-1.5 text-small font-medium text-paper-50 disabled:opacity-50 hover:bg-pine-500 transition-colors"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </div>
-              </form>
-            )}
-          </div>
-
-          {/* Footer Actions */}
-          <div className="pt-2 border-t border-paper-200/40 flex items-center justify-between">
-            {onEditDetails && (
-              <button
-                type="button"
-                onClick={() => onEditDetails(task)}
-                className="inline-flex items-center gap-1.5 text-body font-medium text-ink-500 hover:text-pine-500 transition-colors py-1"
-              >
-                <PencilIcon className="size-3.5" />
-                <span>Edit full details...</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setExpanded(false)}
-              className="text-small text-ink-400 hover:text-ink-600 transition-colors ml-auto py-1"
-            >
-              Collapse
-            </button>
-          </div>
         </div>
-      </motion.div>
-    )}
-  </AnimatePresence>
-    </>
-  )
+      </div>
+    </div>
+  </motion.div>
+</div>
+)
 
   if (reorderable) {
     return (
       <Reorder.Item
         value={task.id}
+        data-task-id={task.id}
         dragListener={!isTouch}
         dragControls={longPress.controls}
         onDragStart={longPress.onDragStart}
         onDragEnd={longPress.onDragEnd}
+        whileDrag={{
+          scale: 1.025,
+          rotate: 0.8,
+          boxShadow: '0 20px 35px -8px rgba(0,0,0,0.5), 0 0 0 1px var(--color-paper-200)',
+          zIndex: 50,
+        }}
         {...rowMotionProps}
         {...(isTouch ? longPress.dragProps : {})}
         className={`${rowClass} coarse:select-none coarse:[-webkit-touch-callout:none]`}
@@ -708,7 +613,7 @@ export default function TaskRow(props: TaskRowProps) {
   }
 
   return (
-    <motion.li {...rowMotionProps} className={rowClass}>
+    <motion.li {...rowMotionProps} data-task-id={task.id} className={rowClass}>
       {rowContent}
     </motion.li>
   )

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { LogoMark } from './icons'
-import { APP_NAME, APP_VERSION_DISPLAY, LAST_LEGAL_UPDATE } from '../constants'
+import { APP_NAME, APP_VERSION, APP_VERSION_NAME, LAST_LEGAL_UPDATE } from '../constants'
 
 export default function TosView({ onBack }: { onBack?: () => void }) {
   const handleBack = () => {
@@ -28,7 +28,7 @@ export default function TosView({ onBack }: { onBack?: () => void }) {
           ← Back to Settings
         </button>
         <span className="rounded-md bg-paper-200 px-2 py-0.5 font-mono text-caption font-medium text-pine-500">
-          v{APP_VERSION_DISPLAY}
+          v{APP_VERSION}
         </span>
       </div>
 
@@ -39,7 +39,7 @@ export default function TosView({ onBack }: { onBack?: () => void }) {
             Terms of Service
           </h1>
           <p className="mt-1.5 text-small text-ink-500">
-            {APP_NAME} v{APP_VERSION_DISPLAY} · Effective {LAST_LEGAL_UPDATE}
+            {APP_NAME} {APP_VERSION_NAME} · Effective {LAST_LEGAL_UPDATE}
           </p>
         </div>
       </div>

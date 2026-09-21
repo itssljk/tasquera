@@ -145,7 +145,7 @@ export function DatePickerPanel(props: DatePickerPanelProps) {
   }
 
   // Accent styling tokens
-  const selectedBg = accentColor === 'amber' ? 'bg-amber-600 text-paper-50 font-semibold' : 'bg-pine-600 text-paper-50 font-semibold'
+  const selectedBg = accentColor === 'amber' ? 'bg-amber-600 text-on-accent font-semibold' : 'bg-pine-600 text-on-accent font-semibold'
 
   return (
     <div className="w-full rounded-2xl border border-paper-200/80 bg-paper-100 p-3.5 text-ink-900 shadow-[0_32px_80px_-16px_rgba(0,0,0,0.85)]">

@@ -43,7 +43,7 @@ export function useTaskView({ tasks, collections, effectiveRoute }: UseTaskViewP
       case 'inbox': {
         const open = tasks.filter((t) => !t.done && t.listId === null)
         const doneList = tasks.filter((t) => t.done && t.listId === null).sort(byCompleted)
-        return { ...base, title: 'Inbox', subtitle: 'Tasks without a home', open, doneList, reorderable: true }
+        return { ...base, title: 'Inbox', subtitle: 'Capture, triage, and clear', open, doneList, reorderable: true }
       }
       case 'today': {
         const due = tasks.filter((t) => !!getEffectiveDate(t) && getEffectiveDate(t)! <= today)
@@ -91,7 +91,7 @@ export function useTaskView({ tasks, collections, effectiveRoute }: UseTaskViewP
       }
       case 'completed': {
         const doneList = tasks.filter((t) => t.done).sort(byCompleted)
-        return { ...base, title: 'Completed', subtitle: `${doneList.length} done`, doneList }
+        return { ...base, title: 'Logbook', subtitle: `${doneList.length} completed tasks archived`, doneList }
       }
       case 'calendar':
         return { ...base, mode: 'calendar', title: 'Calendar', subtitle: '' }
@@ -129,7 +129,7 @@ export function useTaskView({ tasks, collections, effectiveRoute }: UseTaskViewP
   const emptyCopy = (): { title: string; sub?: string } => {
     switch (effectiveRoute.name) {
       case 'inbox':
-        return { title: 'All caught up.', sub: 'Enjoy the quiet, or add what’s next.' }
+        return { title: 'All caught up.', sub: 'Enjoy the quiet of an empty desk.' }
       case 'today':
         return { title: 'Nothing due today.', sub: 'Take a breath, the rest can wait.' }
       case 'upcoming':

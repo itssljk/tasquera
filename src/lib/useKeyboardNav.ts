@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Task } from '../types'
 
 interface UseKeyboardNavProps {
@@ -17,13 +17,40 @@ export function useKeyboardNav({
   enabled = true,
 }: UseKeyboardNavProps) {
   const [focusedId, setFocusedId] = useState<string | null>(null)
+  const lastIndexRef = useRef<number>(0)
 
-  // Reset or clamp focusedId if tasks change and focused task no longer exists
+  // Track the current focused index to enable resilient cursor clamping
   useEffect(() => {
-    if (focusedId && !tasks.some((t) => t.id === focusedId)) {
-      setFocusedId(null)
+    if (focusedId) {
+      const idx = tasks.findIndex((t) => t.id === focusedId)
+      if (idx !== -1) {
+        lastIndexRef.current = idx
+      }
     }
   }, [tasks, focusedId])
+
+  // Resilient focus clamping: when an active task is marked done or deleted,
+  // the cursor smoothly latches onto the adjacent item instead of evaporating.
+  useEffect(() => {
+    if (focusedId && !tasks.some((t) => t.id === focusedId)) {
+      if (tasks.length > 0) {
+        const nextIndex = Math.min(lastIndexRef.current, tasks.length - 1)
+        const target = tasks[Math.max(0, nextIndex)]
+        setFocusedId(target ? target.id : null)
+      } else {
+        setFocusedId(null)
+      }
+    }
+  }, [tasks, focusedId])
+
+  // Automated viewport tracking: keeps focused row within visual bounds
+  useEffect(() => {
+    if (!focusedId) return
+    const el = document.querySelector(`[data-task-id="${focusedId}"]`)
+    if (el) {
+      el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    }
+  }, [focusedId])
 
   useEffect(() => {
     if (!enabled || tasks.length === 0) return
@@ -37,7 +64,7 @@ export function useKeyboardNav({
 
       if (isInput) return
 
-      // Don't intercept if modifier keys like Cmd/Ctrl/Alt are pressed (e.g. Cmd+K, Cmd+Z)
+      // Don't intercept if modifier keys like Cmd/Ctrl/Alt are pressed
       if (e.metaKey || e.ctrlKey || e.altKey) return
 
       const currentIndex = focusedId ? tasks.findIndex((t) => t.id === focusedId) : -1
@@ -52,6 +79,13 @@ export function useKeyboardNav({
         const prevIndex = currentIndex > 0 ? currentIndex - 1 : tasks.length - 1
         const prevTask = tasks[prevIndex]
         if (prevTask) setFocusedId(prevTask.id)
+      } else if (e.key === 'Home') {
+        e.preventDefault()
+        if (tasks[0]) setFocusedId(tasks[0].id)
+      } else if (e.key === 'End') {
+        e.preventDefault()
+        const last = tasks[tasks.length - 1]
+        if (last) setFocusedId(last.id)
       } else if (e.key === 'x') {
         if (focusedId) {
           e.preventDefault()

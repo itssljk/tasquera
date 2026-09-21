@@ -236,7 +236,7 @@ export default function BulkDeleteListsModal({
                       <div
                         className={`flex size-4.5 shrink-0 items-center justify-center rounded-md border transition-colors ${
                           isSelected
-                            ? 'border-pine-600 bg-pine-600 text-white'
+                            ? 'border-pine-600 bg-pine-600 text-on-accent'
                             : 'border-paper-300 bg-paper-100 group-hover:border-ink-400'
                         }`}
                         aria-hidden="true"

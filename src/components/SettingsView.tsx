@@ -4,24 +4,15 @@ import { Filesystem, Directory, Encoding } from '@capacitor/filesystem'
 import {
   BellIcon,
   CalendarIcon,
-  CheckIcon,
-  FlagIcon,
   FolderSyncIcon,
-  InfoIcon,
-  LayoutIcon,
   LogoMark,
   SunIcon,
   VolumeIcon,
 } from './icons'
 import { AppUpdateSection } from './AppUpdate'
-import {
-  APP_NAME,
-  APP_VERSION_CODENAME,
-  APP_VERSION_DISPLAY,
-  LAST_LEGAL_UPDATE,
-} from '../constants'
+import { APP_NAME, APP_VERSION, APP_VERSION_NAME, OFFICIAL_RELEASES_URL } from '../constants'
 import { isNativePlatform, hasNativeWriteAccess } from '../lib/sync'
-import { isMac, getSearchShortcut } from '../lib/platform'
+import { isAndroid, triggerHaptic } from '../lib/platform'
 import { playTaskCompleteSound } from '../lib/sound'
 import {
   getNotificationStatus,
@@ -30,29 +21,65 @@ import {
   type NotificationStatus,
 } from '../lib/notifications'
 
-import type { AppSettings, Collection, PriorityLevel } from '../types'
+import type { AppSettings, Collection } from '../types'
 import type { AppUpdater } from '../lib/useAppUpdater'
+import { useIsDesktop } from '../lib/useMediaQuery'
 
-function Shortcut({ keys, label }: { keys: string; label: string }) {
+/**
+ * The version badge in the Settings header. Shows the friendly release name
+ * (ZenGarden); hovering reveals a tooltip with the semantic version (v1.5.0) and
+ * long-pressing (or right-clicking on desktop) swaps the label to it briefly
+ * for debugging.
+ */
+function VersionBadge() {
+  const [reveal, setReveal] = useState(false)
+  const pressTimer = useRef<number | null>(null)
+  const revertTimer = useRef<number | null>(null)
+
+  const clearPressTimer = () => {
+    if (pressTimer.current !== null) {
+      clearTimeout(pressTimer.current)
+      pressTimer.current = null
+    }
+  }
+
+  const startPress = () => {
+    clearPressTimer()
+    pressTimer.current = window.setTimeout(() => {
+      setReveal(true)
+      if (revertTimer.current !== null) clearTimeout(revertTimer.current)
+      revertTimer.current = window.setTimeout(() => setReveal(false), 2500)
+    }, 500)
+  }
+
+  useEffect(
+    () => () => {
+      if (pressTimer.current !== null) clearTimeout(pressTimer.current)
+      if (revertTimer.current !== null) clearTimeout(revertTimer.current)
+    },
+    [],
+  )
+
   return (
-    <div className="flex items-center justify-between gap-4 py-1.5">
-      <span className="text-body text-ink-700">{label}</span>
-      <kbd className="rounded-lg bg-paper-200/90 px-2.5 py-1 font-mono text-caption font-medium text-ink-500 shadow-2xs">
-        {keys}
-      </kbd>
-    </div>
+    <span
+      title={`v${APP_VERSION}`}
+      onPointerDown={startPress}
+      onPointerUp={clearPressTimer}
+      onPointerLeave={clearPressTimer}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setReveal(true)
+        if (revertTimer.current !== null) clearTimeout(revertTimer.current)
+        revertTimer.current = window.setTimeout(() => setReveal(false), 2500)
+      }}
+      className={`shrink-0 select-none rounded-lg bg-paper-200/80 px-2.5 py-1 text-caption font-mono font-medium text-ink-500 shadow-2xs transition-colors ${
+        reveal ? 'bg-paper-300 text-ink-700' : ''
+      }`}
+    >
+      {reveal ? `v${APP_VERSION}` : APP_VERSION_NAME}
+    </span>
   )
 }
-
-import Dropdown, { type DropdownOption } from './Dropdown'
-
-const PRIORITY_OPTIONS: DropdownOption<PriorityLevel | 'none'>[] = [
-  { value: 'none', label: 'None' },
-  { value: 'low', label: 'Low', textClass: 'text-slateblue-600' },
-  { value: 'medium', label: 'Medium', textClass: 'text-pine-500' },
-  { value: 'high', label: 'High', textClass: 'text-amber-600' },
-  { value: 'urgent', label: 'Urgent', textClass: 'text-terra-600' },
-]
 
 function Switch({
   checked,
@@ -64,24 +91,29 @@ function Switch({
   ariaLabel?: string
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      onClick={onChange}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-out-expo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500/60 ${
-        checked
-          ? 'bg-pine-600'
-          : 'bg-paper-300 hover:bg-paper-400/80'
-      }`}
-    >
-      <span
-        className={`pointer-events-none inline-block size-5 transform rounded-full bg-paper-50 shadow-xs ring-1 ring-black/5 transition-transform duration-200 ease-out-expo ${
-          checked ? 'translate-x-5' : 'translate-x-0'
+    <div className="flex min-h-[44px] min-w-[44px] items-center justify-end">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={ariaLabel}
+        onClick={() => {
+          triggerHaptic('selection')
+          onChange()
+        }}
+        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-out-expo focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pine-500/60 ${
+          checked
+            ? 'bg-pine-600'
+            : 'bg-paper-300 hover:bg-paper-400/80'
         }`}
-      />
-    </button>
+      >
+        <span
+          className={`pointer-events-none inline-block size-5 transform rounded-full bg-paper-50 shadow-xs ring-1 ring-black/5 transition-transform duration-200 ease-out-expo ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </div>
   )
 }
 
@@ -107,6 +139,7 @@ export default function SettingsView({
   updater,
   collections,
   onOpenBulkDelete,
+  onOpenShortcuts,
 }: {
   settings?: AppSettings
   onUpdateSettings?: (patch: Partial<AppSettings>) => void
@@ -130,7 +163,9 @@ export default function SettingsView({
   updater?: AppUpdater
   collections?: Collection[]
   onOpenBulkDelete?: () => void
+  onOpenShortcuts?: () => void
 }) {
+  const isDesktop = useIsDesktop()
   const [armed, setArmed] = useState(false)
   const [dataMsg, setDataMsg] = useState<string | null>(null)
   const [notifStatus, setNotifStatus] = useState<NotificationStatus>('unknown')
@@ -187,7 +222,7 @@ export default function SettingsView({
             setTimeout(() => setDataMsg(null), 4000)
             return
           } catch (docErr) {
-            // Fall through to app storage below if Documents is not writable.
+            // Fall through to app storage below
           }
         }
         await Filesystem.writeFile({
@@ -222,7 +257,7 @@ export default function SettingsView({
     const reader = new FileReader()
     reader.onload = async () => {
       const ok = await onImportData(String(reader.result ?? ''))
-      setDataMsg(ok ? 'Data imported.' : 'Import failed: not a valid Tasquera backup.')
+      setDataMsg(ok ? 'Data imported successfully.' : 'Import failed: not a valid Tasquera backup.')
       setTimeout(() => setDataMsg(null), 4000)
     }
     reader.readAsText(file)
@@ -250,51 +285,73 @@ export default function SettingsView({
             <p className="mt-1 text-small text-ink-500 truncate">calm by design · warm editorial</p>
           </div>
         </div>
-        <span className="shrink-0 rounded-lg bg-paper-200/80 px-2.5 py-1 text-caption font-mono font-medium text-ink-500 shadow-2xs">
-          v{APP_VERSION_DISPLAY}
-        </span>
+        <VersionBadge />
       </div>
 
-      {/* PWA section (web only) */}
-      {!isNative && (
+      {/* PWA / Native APK download section */}
+      {!isNative && ((canInstallPWA && !isStandalonePWA) || isAndroid()) && (
         <section className="space-y-2.5">
           <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-            Progressive Web App
+            Install App
           </h2>
           <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Desktop & Mobile App</p>
+                <p className="text-body-lg font-semibold text-ink-900 leading-snug">
+                  {isAndroid() ? 'Android App (Official APK)' : isDesktop ? 'Desktop & Mobile App' : 'Mobile App'}
+                </p>
                 <p className="mt-1 text-body text-ink-500 leading-relaxed">
-                  {isStandalonePWA
-                    ? 'Tasquera is running as an installed standalone app with offline support.'
-                    : 'Download Tasquera to your desktop or phone home screen for instant offline access.'}
+                  {isAndroid()
+                    ? 'Download the official APK from GitHub Releases for native background alarms and Syncthing local folder sync.'
+                    : isDesktop
+                      ? 'Download Tasquera to your home screen or desktop for instant, distraction-free offline access.'
+                      : 'Add Tasquera to your home screen for instant, distraction-free offline access.'}
                 </p>
               </div>
-              {isStandalonePWA ? (
-                <span className="inline-flex shrink-0 items-center self-start sm:self-center gap-1.5 rounded-xl bg-pine-500/15 px-3 py-1.5 text-body font-medium text-pine-300">
-                  <CheckIcon className="size-4 text-pine-400" /> Installed
-                </span>
-              ) : (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={onInstallPWA}
-                  disabled={!canInstallPWA}
-                  className="shrink-0 self-start sm:self-center rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-[#fbf9f5] shadow-xs transition-colors hover:bg-pine-700 active:bg-pine-800 disabled:opacity-50 cursor-pointer"
-                >
-                  Install App
-                </motion.button>
-              )}
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                {isAndroid() ? (
+                  <>
+                    <a
+                      href={OFFICIAL_RELEASES_URL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-[#fbf9f5] shadow-xs transition-colors hover:bg-pine-700 active:bg-pine-800 cursor-pointer"
+                    >
+                      Download APK
+                    </a>
+                    {onInstallPWA && (
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        type="button"
+                        onClick={onInstallPWA}
+                        className="shrink-0 rounded-xl bg-paper-200 px-3.5 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs cursor-pointer"
+                      >
+                        Guide
+                      </motion.button>
+                    )}
+                  </>
+                ) : (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    type="button"
+                    onClick={onInstallPWA}
+                    className="shrink-0 rounded-xl bg-pine-600 px-4 py-2 text-body font-medium text-[#fbf9f5] shadow-xs transition-colors hover:bg-pine-700 active:bg-pine-800 cursor-pointer"
+                  >
+                    Install App
+                  </motion.button>
+                )}
+              </div>
             </div>
           </div>
         </section>
       )}
 
-      {/* Preferences & Interface */}
+      {/* Preferences & Rhythm */}
       <section className="space-y-2.5">
         <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-          Preferences & Interface
+          Preferences & Rhythm
         </h2>
         <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-6">
           {/* Appearance Theme */}
@@ -307,8 +364,8 @@ export default function SettingsView({
                 <p className="text-body-lg font-semibold text-ink-900 leading-snug">Daylight theme (Warm Light)</p>
                 <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
                   {(settings?.theme ?? 'dark') === 'light'
-                    ? 'Warm cream paper aesthetic for bright environments.'
-                    : 'Warm editorial dark theme.'}
+                    ? 'Warm cream paper aesthetic for bright daylight environments.'
+                    : 'Warm roasted chicory dark theme.'}
                 </p>
               </div>
             </div>
@@ -324,7 +381,7 @@ export default function SettingsView({
           </div>
 
           {/* Week Start Day */}
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center justify-between gap-4 border-t border-paper-200/40 pt-5">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
                 <CalendarIcon className="size-4.5" />
@@ -333,8 +390,8 @@ export default function SettingsView({
                 <p className="text-body-lg font-semibold text-ink-900 leading-snug">Start week on Monday</p>
                 <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
                   {(settings?.weekStartsOn ?? 'monday') === 'monday'
-                    ? 'Weeks start on Monday in calendar & date pickers.'
-                    : 'Weeks start on Sunday in calendar & date pickers.'}
+                    ? 'Weeks start on Monday in calendar and date pickers.'
+                    : 'Weeks start on Sunday in calendar and date pickers.'}
                 </p>
               </div>
             </div>
@@ -349,34 +406,8 @@ export default function SettingsView({
             />
           </div>
 
-          {/* Desktop Task Modal Layout */}
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
-                <LayoutIcon className="size-4.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Desktop slide-out drawer</p>
-                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
-                  {settings?.taskModalLayout === 'drawer'
-                    ? 'Task editor opens as a right-side drawer on desktop.'
-                    : 'Task editor opens as a centered dialog on desktop.'}
-                </p>
-              </div>
-            </div>
-            <Switch
-              checked={settings?.taskModalLayout === 'drawer'}
-              onChange={() =>
-                onUpdateSettings?.({
-                  taskModalLayout: settings?.taskModalLayout === 'drawer' ? 'centered' : 'drawer',
-                })
-              }
-              ariaLabel="Desktop slide-out drawer"
-            />
-          </div>
-
-          {/* Completion Sound Feedback */}
-          <div className="flex items-center justify-between gap-4">
+          {/* Completion Chime */}
+          <div className="flex items-center justify-between gap-4 border-t border-paper-200/40 pt-5">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               <div
                 className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
@@ -399,7 +430,7 @@ export default function SettingsView({
                   )}
                 </div>
                 <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
-                  Play a quiet, gentle tone when checking off a task.
+                  Play a quiet, gentle acoustic tone when checking off a task.
                 </p>
               </div>
             </div>
@@ -410,130 +441,99 @@ export default function SettingsView({
             />
           </div>
 
-          {/* Default Task Priority */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-paper-200 text-ink-400">
-                <FlagIcon className="size-4.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Default task priority</p>
-                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
-                  Initial priority assigned when quick-adding tasks.
-                </p>
-              </div>
-            </div>
-            <div className="self-start sm:self-center shrink-0">
-              <Dropdown<PriorityLevel | 'none'>
-                value={settings?.defaultTaskPriority ?? 'none'}
-                options={PRIORITY_OPTIONS}
-                onChange={(val) => onUpdateSettings?.({ defaultTaskPriority: val })}
-                ariaLabel="Default task priority"
-                align="right"
-                valueTextClass={
-                  settings?.defaultTaskPriority === 'low'
-                    ? 'text-slateblue-600'
-                    : settings?.defaultTaskPriority === 'medium'
-                      ? 'text-pine-500'
-                      : settings?.defaultTaskPriority === 'high'
-                        ? 'text-amber-600'
-                        : settings?.defaultTaskPriority === 'urgent'
-                          ? 'text-terra-600'
-                          : 'text-ink-900'
-                }
-                triggerClass="bg-paper-200 hover:bg-paper-300 rounded-xl px-3 py-1.5 min-w-[100px] justify-between shadow-2xs"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Notifications */}
-      <section className="space-y-2.5">
-        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-          Notifications & Reminders
-        </h2>
-        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs">
-          <div className="flex items-start justify-between gap-3 sm:gap-4">
-            <div className="flex items-start gap-3 min-w-0 flex-1">
-              <div
-                className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
-                  settings?.notificationsEnabled ? 'bg-pine-500/15 text-pine-400' : 'bg-paper-200 text-ink-400'
-                }`}
-              >
-                <BellIcon className="size-4.5" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-body-lg font-semibold text-ink-900 leading-snug">
-                    Due date reminders
-                  </span>
-                  {settings?.notificationsEnabled && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-caption font-medium text-pine-300">
-                      <span className="size-1.5 rounded-full bg-pine-400 animate-pulse" />
-                      On
+          {/* Due Date Reminders */}
+          <div className="border-t border-paper-200/40 pt-5">
+            <div className="flex items-start justify-between gap-3 sm:gap-4">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                    settings?.notificationsEnabled ? 'bg-pine-500/15 text-pine-400' : 'bg-paper-200 text-ink-400'
+                  }`}
+                >
+                  <BellIcon className="size-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-body-lg font-semibold text-ink-900 leading-snug">
+                      Due date reminders
                     </span>
+                    {settings?.notificationsEnabled && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-pine-500/15 px-2.5 py-0.5 text-caption font-medium text-pine-300">
+                        <span className="size-1.5 rounded-full bg-pine-400 animate-pulse" />
+                        On
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-small text-ink-500 leading-relaxed">
+                    {isNative
+                      ? 'Tasquera reminds you when tasks are due, even when closed.'
+                      : 'Reminds you when tasks are due while the app is open in this browser.'}
+                  </p>
+                  {!isNative && isAndroid() && (
+                    <p className="mt-1.5 text-caption text-pine-600 dark:text-pine-400">
+                      Want reminders when the app is closed?{' '}
+                      <a
+                        href={OFFICIAL_RELEASES_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline font-semibold hover:text-pine-700 dark:hover:text-pine-300"
+                      >
+                        Download the official Android APK
+                      </a>.
+                    </p>
                   )}
                 </div>
-                <p className="mt-1 text-small text-ink-500 leading-relaxed">
-                  {isNative
-                    ? 'Tasquera reminds you when tasks are due, even when the app is closed.'
-                    : 'Tasquera reminds you when tasks are due while it’s open in this browser.'}
-                </p>
               </div>
-            </div>
-            <Switch
-              checked={settings?.notificationsEnabled ?? false}
-              onChange={handleToggleNotifications}
-              ariaLabel="Due date reminders"
-            />
-          </div>
-
-          {notifMsg && (
-            <p className="mt-4 rounded-xl bg-terra-50 p-3.5 text-small font-medium text-terra-600">
-              {notifMsg}
-            </p>
-          )}
-
-          {settings?.notificationsEnabled && (
-            <div className="mt-5 flex flex-col gap-3 border-t border-paper-200/50 pt-5 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-body-lg font-medium text-ink-800">Remind on due date at</p>
-                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
-                  Date-only tasks trigger a reminder at this local time.
-                </p>
-              </div>
-              <input
-                type="time"
-                value={settings?.notificationTime ?? '09:00'}
-                onChange={(e) => onUpdateSettings?.({ notificationTime: e.target.value || '09:00' })}
-                className="shrink-0 self-start sm:self-center rounded-xl bg-paper-50 px-3.5 py-2 text-body font-medium text-ink-700 shadow-2xs transition-colors hover:bg-paper-200/60 focus:ring-2 focus:ring-pine-500 focus:outline-none"
+              <Switch
+                checked={settings?.notificationsEnabled ?? false}
+                onChange={handleToggleNotifications}
+                ariaLabel="Due date reminders"
               />
             </div>
-          )}
 
-          {notifStatus === 'denied' && (
-            <p className="mt-4 rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
-              {isNative
-                ? 'Notifications are blocked at the system level. Allow them for Tasquera in Android settings, then toggle reminders on.'
-                : 'Notifications are blocked for this site. Allow them in your browser’s site permissions, then toggle reminders on.'}
-            </p>
-          )}
-          {!isNative && notifStatus === 'unsupported' && (
-            <p className="mt-4 rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
-              Notifications aren’t supported in this browser. Reminders will appear in-app on the Today view instead.
-            </p>
-          )}
+            {notifMsg && (
+              <p className="mt-3 rounded-xl bg-terra-50 p-3.5 text-small font-medium text-terra-600">
+                {notifMsg}
+              </p>
+            )}
+
+            {settings?.notificationsEnabled && (
+              <div className="mt-4 flex flex-col gap-3 rounded-xl bg-paper-50/70 p-3.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-small font-medium text-ink-800">Remind on due date at</p>
+                  <p className="text-caption text-ink-400">Date-only tasks trigger a reminder at this time.</p>
+                </div>
+                <input
+                  type="time"
+                  value={settings?.notificationTime ?? '09:00'}
+                  onChange={(e) => onUpdateSettings?.({ notificationTime: e.target.value || '09:00' })}
+                  className="shrink-0 rounded-xl bg-paper-200/80 px-3 py-1.5 text-small font-medium text-ink-800 focus:ring-2 focus:ring-pine-500 focus:outline-none"
+                />
+              </div>
+            )}
+
+            {notifStatus === 'denied' && (
+              <p className="mt-3 rounded-xl bg-amber-500/10 p-3 text-small text-amber-600 leading-snug">
+                Notifications are blocked at the system or browser level. Allow them in settings to receive reminders.
+              </p>
+            )}
+          </div>
         </div>
       </section>
 
-      {/* Syncthing & Storage Sync */}
+      {/* Storage & Data Sovereignty */}
       <section className="space-y-2.5">
         <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-          {isNative ? 'Device Storage & Sync' : 'Syncthing & Local Sync'}
+          {isNative ? 'Device Storage & Sync' : 'Storage & Data Sovereignty'}
         </h2>
-        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-4">
-          {/* Main Card Header */}
+        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-5">
+          {dataMsg && (
+            <p className="rounded-xl bg-pine-50 p-3.5 text-small font-medium text-pine-400">
+              {dataMsg}
+            </p>
+          )}
+
+          {/* Folder Sync / Syncthing Header */}
           <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3 min-w-0 flex-1">
               <div
@@ -562,7 +562,7 @@ export default function SettingsView({
                 <p className="mt-1 text-small text-ink-500 leading-relaxed">
                   {isNative
                     ? 'Continuous local sync with your device storage for Syncthing'
-                    : 'Direct bidirectional file sync with your local filesystem'}
+                    : 'Direct bidirectional file sync with your local filesystem folder'}
                 </p>
               </div>
             </div>
@@ -594,7 +594,7 @@ export default function SettingsView({
           </div>
 
           {/* Sync Path & Status Info Bar */}
-          <div className="flex flex-col gap-2 rounded-xl bg-paper-50 p-3.5 text-small sm:flex-row sm:items-center sm:justify-between shadow-2xs">
+          <div className="flex flex-col gap-2 rounded-xl bg-paper-50 p-3 text-small sm:flex-row sm:items-center sm:justify-between shadow-2xs">
             <div className="flex items-center gap-2 min-w-0">
               <span className="shrink-0 font-medium text-ink-400">Path:</span>
               <span className="truncate font-mono text-caption text-ink-800 bg-paper-200/80 px-2 py-0.5 rounded-md">
@@ -612,97 +612,55 @@ export default function SettingsView({
           {/* Browser Unsupported Warning */}
           {!isFileSystemSupported && !isNative && (
             <div className="rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
-              Your current browser does not support local folder access. You can still use the <strong>Backup & restore</strong> feature below to export and import data manually.
+              {isAndroid() ? (
+                <span>
+                  Mobile browsers do not support local folder binding. For automatic Syncthing sync,{' '}
+                  <a
+                    href={OFFICIAL_RELEASES_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline font-semibold hover:text-amber-700"
+                  >
+                    download the official Android APK
+                  </a>.
+                </span>
+              ) : (
+                'Your browser does not support local folder binding. Use manual JSON/Markdown backups below.'
+              )}
             </div>
           )}
 
-          {/* Storage access required (Android 11+) */}
+          {/* Android Permission Warning */}
           {syncNeedsPermission && (
             <div className="rounded-xl bg-amber-500/10 p-3.5 text-small text-amber-600 leading-snug">
-              Android 11 and newer require <strong>All files access</strong> to read and write the <code className="font-mono text-caption">Documents/Tsqsync/</code> folder. Grant it once and Tasquera will reconnect automatically.
+              Android 11+ requires <strong>All files access</strong> to read and write the <code className="font-mono text-caption">Documents/Tsqsync/</code> folder.
             </div>
           )}
 
-          {/* Error Message */}
           {syncErrorMsg && (
             <div className="rounded-xl bg-terra-50 p-3.5 text-small font-medium text-terra-600">
               {syncErrorMsg}
             </div>
           )}
 
-          {/* Auto-resolved conflict notice */}
           {syncResolveMsg && (
             <div className="rounded-xl bg-pine-50 p-3.5 text-small font-medium text-pine-400">
               {syncResolveMsg}
             </div>
           )}
 
-          {/* Syncthing Guide Card */}
-          <div className="flex items-start gap-2.5 rounded-xl bg-paper-200/50 p-3.5 text-small text-ink-600 leading-relaxed">
-            <InfoIcon className="size-4 shrink-0 text-ink-400 mt-0.5" />
+          {/* Snapshots & Backups */}
+          <div className="pt-4 border-t border-paper-200/40 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
-              {isNative ? (
-                <>
-                  <span className="font-semibold text-ink-800">Syncthing Setup:</span> In your Syncthing app on Android, add and share the folder <code className="font-mono text-caption text-pine-400 bg-paper-50 px-1.5 py-0.5 rounded">Documents/Tsqsync/</code>. Tasquera writes and reads state directly from this directory.
-                </>
-              ) : (
-                <>
-                  <span className="font-semibold text-ink-800">How it works:</span> Click <em>Select Folder</em> to bind a folder shared by Syncthing on your machine. Tasquera will read remote updates and write state automatically.
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Keyboard Shortcuts - Desktop web only, hidden on mobile screens & APK */}
-      {!isNative && (
-        <section className="space-y-2.5 hidden md:block">
-          <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-            Keyboard Shortcuts
-          </h2>
-          <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-2">
-            <Shortcut keys="/" label="Quick-add a task" />
-            <Shortcut keys="Enter" label="Add / submit task" />
-            <Shortcut keys="j / k" label="Navigate tasks (Vim / arrows)" />
-            <Shortcut keys="x" label="Toggle completed" />
-            <Shortcut keys="e" label="Edit task details" />
-            <Shortcut keys="Shift + Click" label="Multi-select tasks" />
-            <Shortcut keys={getSearchShortcut()} label="Search tasks & collections" />
-            <Shortcut keys={isMac() ? '⌘Z / ⇧⌘Z' : 'Ctrl+Z / Ctrl+Y'} label="Undo / redo" />
-            <Shortcut keys="Drag" label="Reorder tasks & columns" />
-          </div>
-        </section>
-      )}
-
-      {/* Data Management */}
-      <section className="space-y-2.5">
-        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-          Data Management
-        </h2>
-        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-6">
-          {dataMsg && (
-            <p className="rounded-xl bg-pine-50 p-3.5 text-small font-medium text-pine-400">
-              {dataMsg}
-            </p>
-          )}
-
-          {/* Backup & Restore */}
-          <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-body-lg font-semibold text-ink-900 leading-snug">Backup & restore</p>
-              <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
-                {isNative
-                  ? 'Export a snapshot JSON backup to device storage, or restore previous tasks from one.'
-                  : 'Data lives locally in this browser. Export a JSON backup, or restore from one.'}
-              </p>
+              <p className="text-body font-semibold text-ink-900 leading-snug">Snapshots & Backups</p>
+              <p className="mt-0.5 text-small text-ink-500">Export a portable backup or restore previously saved data.</p>
             </div>
             <div className="flex shrink-0 gap-2 self-start sm:self-center w-full sm:w-auto">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={exportData}
-                className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
+                className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-3.5 py-1.5 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
               >
                 Export JSON
               </motion.button>
@@ -722,7 +680,7 @@ export default function SettingsView({
                     setDataMsg('Markdown checklist downloaded.')
                     setTimeout(() => setDataMsg(null), 3000)
                   }}
-                  className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
+                  className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-3.5 py-1.5 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
                 >
                   Export MD
                 </motion.button>
@@ -731,7 +689,7 @@ export default function SettingsView({
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
+                className="flex-1 sm:flex-initial rounded-xl bg-paper-200 px-3.5 py-1.5 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs text-center cursor-pointer"
               >
                 Import
               </motion.button>
@@ -739,100 +697,89 @@ export default function SettingsView({
             </div>
           </div>
 
-          {/* Bulk Delete Lists */}
-          {collections && collections.length > 0 && onOpenBulkDelete && (
-            <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+          {/* Danger Zone */}
+          <div className="pt-4 border-t border-paper-200/40 space-y-3">
+            {collections && collections.length > 0 && onOpenBulkDelete && (
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-body font-medium text-ink-800">Bulk delete lists</p>
+                  <p className="text-small text-ink-500">Remove multiple lists at once; tasks are kept in Unsorted.</p>
+                </div>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  onClick={onOpenBulkDelete}
+                  className="shrink-0 rounded-xl bg-paper-200 px-3.5 py-1.5 text-small font-medium text-ink-800 hover:bg-paper-300 shadow-2xs cursor-pointer"
+                >
+                  Delete lists…
+                </motion.button>
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-body-lg font-semibold text-ink-900 leading-snug">Bulk delete lists</p>
-                <p className="mt-0.5 text-small text-ink-500 leading-relaxed">
-                  Select and delete multiple lists at once. Tasks inside them will be moved to Unsorted.
-                </p>
+                <p className="text-body font-medium text-terra-600">Clear all tasks</p>
+                <p className="text-small text-ink-500">Removes all tasks while preserving lists and boards.</p>
               </div>
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.97 }}
-                type="button"
-                onClick={onOpenBulkDelete}
-                className="shrink-0 self-start sm:self-center rounded-xl bg-paper-200 px-4 py-2 text-body font-medium text-ink-800 transition-colors hover:bg-paper-300 active:bg-paper-400 shadow-2xs w-full sm:w-auto text-center cursor-pointer"
+                onClick={clear}
+                className={`shrink-0 rounded-xl px-3.5 py-1.5 text-small font-medium transition-colors duration-150 cursor-pointer ${
+                  armed ? 'bg-terra-600 text-[#fbf9f5] shadow-xs' : 'text-terra-600 hover:bg-terra-50 bg-paper-200/80'
+                }`}
               >
-                Delete lists…
+                {armed ? 'Tap to confirm' : 'Clear all'}
               </motion.button>
             </div>
-          )}
-
-          {/* Clear All Tasks */}
-          <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <p className="text-body-lg font-semibold text-ink-900 leading-snug">Clear all tasks</p>
-              <p className="mt-0.5 text-small text-ink-500 leading-relaxed">Removes every task. Boards and lists stay intact.</p>
-            </div>
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={clear}
-              className={`shrink-0 self-start sm:self-center rounded-xl px-4 py-2 text-body font-medium transition-colors duration-150 w-full sm:w-auto text-center cursor-pointer ${
-                armed ? 'bg-terra-600 text-[#fbf9f5] shadow-xs' : 'text-terra-600 hover:bg-terra-50 bg-paper-200/80'
-              }`}
-            >
-              {armed ? 'Tap to confirm' : 'Clear all'}
-            </motion.button>
           </div>
         </div>
       </section>
+
+      {/* Quick Reference */}
+      {isDesktop && onOpenShortcuts && (
+        <section className="hidden md:block space-y-2.5">
+          <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
+            Quick Reference
+          </h2>
+          <div className="rounded-2xl bg-paper-100/70 p-5 shadow-2xs flex items-center justify-between gap-4">
+            <div>
+              <p className="text-body-lg font-semibold text-ink-900 leading-snug">Keyboard Shortcuts</p>
+              <p className="mt-0.5 text-small text-ink-500">
+                Press <kbd className="rounded bg-paper-200 px-1.5 py-0.5 font-mono text-caption text-ink-700">?</kbd> anywhere to open the cheat sheet.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onOpenShortcuts}
+              className="shrink-0 rounded-xl bg-paper-200 px-3.5 py-2 text-body font-medium text-ink-800 hover:bg-paper-300 transition-colors shadow-2xs cursor-pointer"
+            >
+              View shortcuts
+            </button>
+          </div>
+        </section>
+      )}
 
       {/* Updates (Native Android APK) */}
       {isNative && updater && <AppUpdateSection updater={updater} />}
 
-      {/* About & Legal */}
-      <section className="space-y-2.5">
-        <h2 className="text-caption font-semibold uppercase tracking-[0.14em] text-ink-400 ml-1">
-          About & Legal
-        </h2>
-        <div className="rounded-2xl bg-paper-100/70 p-5 sm:p-6 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between text-body">
-            <span className="text-ink-700">Application Version</span>
-            <span className="font-mono text-small text-ink-900 font-medium">
-              {APP_VERSION_DISPLAY} <span className="font-sans font-normal text-caption text-ink-400">({APP_VERSION_CODENAME})</span>
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-body">
-            <span className="text-ink-700">Storage Architecture</span>
-            <span className="text-small text-pine-400 font-medium">100% Local-First</span>
-          </div>
-          <div className="flex items-center justify-between text-body">
-            <span className="text-ink-700">Last Legal Update</span>
-            <span className="text-small text-ink-500">{LAST_LEGAL_UPDATE}</span>
-          </div>
-          <div className="pt-2 flex flex-wrap items-center gap-2 text-small font-medium">
-            <a
-              href="#/tos"
-              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
-            >
-              Terms of Service
-            </a>
-            <a
-              href="#/privacy"
-              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
-            >
-              Privacy Policy
-            </a>
-            <a
-              href="#/licenses"
-              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
-            >
-              Open Source Licenses
-            </a>
-            <a
-              href="https://discord.gg/Kfn4V2nF3N"
-              target="_blank"
-              rel="noreferrer"
-              className="rounded-lg bg-paper-200 px-3 py-1.5 text-pine-400 transition-colors hover:bg-paper-300 hover:text-pine-300 active:scale-95 cursor-pointer"
-            >
-              Discord
-            </a>
-          </div>
+      {/* Editorial Colophon */}
+      <footer className="pt-4 pb-2 text-center space-y-3 border-t border-paper-200/40">
+        <p className="text-small text-ink-500">
+          <span className="font-semibold text-ink-700">{APP_NAME}</span> · Version {APP_VERSION} ({APP_VERSION_NAME}) · 100% Local-First
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-caption text-pine-400 font-medium">
+          <a href="#/tos" className="hover:underline">Terms of Service</a>
+          <span className="text-paper-300">·</span>
+          <a href="#/privacy" className="hover:underline">Privacy Policy</a>
+          <span className="text-paper-300">·</span>
+          <a href="#/licenses" className="hover:underline">Open Source</a>
+          <span className="text-paper-300">·</span>
+          <a href={OFFICIAL_RELEASES_URL} target="_blank" rel="noreferrer" className="hover:underline">Android APK</a>
+          <span className="text-paper-300">·</span>
+          <a href="https://discord.gg/Kfn4V2nF3N" target="_blank" rel="noreferrer" className="hover:underline">Discord</a>
         </div>
-      </section>
+      </footer>
     </div>
   )
 }

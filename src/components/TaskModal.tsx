@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { motion, Reorder } from 'framer-motion'
+import { AnimatePresence, motion, Reorder, useDragControls } from 'framer-motion'
+import { SPRINGS } from '../lib/motion'
 import type { Collection, PriorityLevel, Recurrence, Subtask, Task, TaskLink, TaskStatus } from '../types'
 import Dropdown from './Dropdown'
 import { DatePickerPanel, DatePickerTrigger } from './DatePicker'
 import RecurrencePicker from './RecurrencePicker'
 import { useIsDesktop } from '../lib/useMediaQuery'
-import { isMac } from '../lib/platform'
+import { isMac, triggerHaptic } from '../lib/platform'
+import { registerBackHandler } from '../lib/backButton'
 import { parseTaskInput } from '../lib/nlp'
 import { formatDue } from '../lib/date'
 import {
@@ -47,7 +49,7 @@ const PRIORITIES: { id: PriorityLevel; label: string; text: string }[] = [
 
 const toolbarIcon = 'size-3.5 shrink-0 text-ink-400'
 const insetInput =
-  'w-full rounded-lg bg-paper-50 px-3 py-2 text-body text-ink-900 outline-none ring-2 ring-transparent transition-shadow duration-150 focus:ring-pine-500/25 placeholder:text-ink-400'
+  'w-full rounded-lg bg-paper-50 px-3 py-2 text-[16px] sm:text-body text-ink-900 outline-none ring-2 ring-transparent transition-shadow duration-150 focus:ring-pine-500/25 placeholder:text-ink-400'
 
 export default function TaskModal(props: TaskModalProps) {
   const {
@@ -125,6 +127,19 @@ export default function TaskModal(props: TaskModalProps) {
     return () => document.removeEventListener('keydown', onKeyDown, true)
   }, [scheduleOpen])
 
+  // Android hardware/gesture back button listener
+  useEffect(() => {
+    if (!isOpen) return
+    return registerBackHandler(() => {
+      if (scheduleOpen) {
+        setScheduleOpen(false)
+        return true
+      }
+      onClose()
+      return true
+    })
+  }, [isOpen, scheduleOpen, onClose])
+
   const nlpPreview = (() => {
     if (!title.trim() || taskToEdit) return null
     const parsed = parseTaskInput(title)
@@ -195,11 +210,14 @@ export default function TaskModal(props: TaskModalProps) {
   }
 
   const toggleSubtask = (id: string) => {
+    const target = subtasks.find((s) => s.id === id)
+    triggerHaptic(target?.done ? 'selection' : 'success')
     const updated = subtasks.map((s) => (s.id === id ? { ...s, done: !s.done } : s))
     updateSubtasksWithAutoStatus(updated)
   }
 
   const removeSubtask = (id: string) => {
+    triggerHaptic('light')
     const updated = subtasks.filter((s) => s.id !== id)
     updateSubtasksWithAutoStatus(updated)
   }
@@ -237,12 +255,16 @@ export default function TaskModal(props: TaskModalProps) {
   const showLinks = links.length > 0 || showAddLink
   const priorityStyle = PRIORITIES.find((p) => p.id === priority) ?? PRIORITIES[1]
   const isCentered = isDesktop && layout === 'centered'
+  const dragControls = useDragControls()
 
   const modalBody = (
     <>
       {/* Mobile grab handle */}
-      <div className="flex w-full justify-center pt-2.5 pb-1 md:hidden">
-        <div className="h-1 w-10 rounded-full bg-ink-300/50" />
+      <div
+        onPointerDown={(e) => dragControls.start(e)}
+        className="flex w-full justify-center pt-3 pb-1 md:hidden cursor-grab active:cursor-grabbing touch-none shrink-0"
+      >
+        <div className="h-1 w-9 rounded-full bg-paper-300/70" />
       </div>
 
       {/* Header */}
@@ -286,7 +308,7 @@ export default function TaskModal(props: TaskModalProps) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add details, context, notes…"
-            className="mt-3 w-full resize-y bg-transparent text-body-lg leading-relaxed text-ink-700 placeholder:text-ink-400 outline-none min-h-[52px]"
+            className="mt-3 w-full resize-y bg-transparent text-[16px] sm:text-body-lg leading-relaxed text-ink-700 placeholder:text-ink-400 outline-none min-h-[52px]"
           />
 
           {/* Metadata toolbar */}
@@ -357,6 +379,8 @@ export default function TaskModal(props: TaskModalProps) {
                   <Reorder.Item
                     key={s.id}
                     value={s}
+                    transition={SPRINGS.snappy}
+                    whileDrag={{ scale: 1.02, boxShadow: '0 12px 28px -4px rgba(0,0,0,0.5)' }}
                     className="group flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors duration-150 hover:bg-paper-200/50"
                   >
                     <span className="cursor-grab active:cursor-grabbing text-ink-400/50 hover:text-ink-400 opacity-40 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
@@ -369,7 +393,7 @@ export default function TaskModal(props: TaskModalProps) {
                       aria-label={s.done ? `Mark “${s.title}” as incomplete` : `Mark “${s.title}” as complete`}
                       className={`flex size-4.5 shrink-0 items-center justify-center rounded-md border transition-all duration-150 cursor-pointer ${
                         s.done
-                          ? 'border-pine-600 bg-pine-600 text-paper-50 shadow-xs'
+                          ? 'border-pine-600 bg-pine-600 text-on-accent shadow-xs'
                           : 'border-ink-400/50 bg-paper-100/40 hover:border-pine-500 hover:bg-pine-500/10'
                       }`}
                     >
@@ -543,7 +567,7 @@ export default function TaskModal(props: TaskModalProps) {
 
         {/* Sticky footer actions */}
         <div className="sticky bottom-0 z-20 flex items-center justify-between gap-4 border-t border-paper-200/70 bg-paper-100/95 px-6 sm:px-7 pt-3.5 pb-[calc(env(safe-area-inset-bottom,0px)+1.5rem)] sm:py-3.5 backdrop-blur-xs">
-          <span className="hidden text-small text-ink-400 sm:block">
+          <span className="hidden text-small text-ink-400 md:block">
             Press{' '}
             <kbd className="rounded-md bg-paper-200 px-1.5 py-0.5 font-sans text-micro font-medium text-ink-500">
               {isMac() ? '⌘Enter' : 'Ctrl+Enter'}
@@ -551,20 +575,23 @@ export default function TaskModal(props: TaskModalProps) {
             to save
           </span>
           <div className="ml-auto flex items-center gap-2">
-            <button
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.94 }}
               onClick={onClose}
-              className="rounded-xl px-4 py-2 text-body-lg font-medium text-ink-600 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900 active:scale-98 cursor-pointer"
+              className="rounded-xl px-4 py-2 text-body-lg font-medium text-ink-600 transition-colors duration-150 hover:bg-paper-200/60 hover:text-ink-900 cursor-pointer"
             >
               Cancel
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.94 }}
+              whileHover={{ scale: 1.02 }}
               onClick={() => handleFormSubmit()}
-              className="rounded-xl bg-pine-600 px-5 py-2 text-body-lg font-semibold text-[#fbf9f5] shadow-xs transition-all duration-150 hover:bg-pine-700 active:scale-95 cursor-pointer"
+              className="rounded-xl bg-pine-600 px-5 py-2 text-body-lg font-semibold text-on-accent shadow-xs transition-all duration-150 hover:bg-pine-700 cursor-pointer"
             >
               {taskToEdit ? 'Save Changes' : 'Create Task'}
-            </button>
+            </motion.button>
           </div>
         </div>
     </>
@@ -577,8 +604,14 @@ export default function TaskModal(props: TaskModalProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-50 bg-[#0c0b0a]/70 backdrop-blur-sm"
+        transition={{ duration: 0.18 }}
+        className={`fixed inset-0 z-50 ${
+          isCentered
+            ? 'bg-[#0c0b0a]/70 backdrop-blur-md'
+            : isDesktop
+              ? 'bg-[#0c0b0a]/35 backdrop-blur-[2px]'
+              : 'bg-[#0c0b0a]/60 backdrop-blur-sm'
+        }`}
         onClick={onClose}
       />
 
@@ -586,15 +619,15 @@ export default function TaskModal(props: TaskModalProps) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
           <motion.div
             key="taskmodal-panel-centered"
-            initial={{ opacity: 0, scale: 0.96, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            initial={{ opacity: 0, scale: 0.94, y: 14, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, scale: 1, y: 0, filter: 'blur(0px)' }}
+            exit={{ opacity: 0, scale: 0.94, y: 14, filter: 'blur(6px)' }}
+            transition={SPRINGS.modal}
             onKeyDown={handleKeyDown}
             role="dialog"
             aria-modal="true"
             aria-label={taskToEdit ? 'Edit task' : 'New task'}
-            className="pointer-events-auto relative flex flex-col w-full max-w-[580px] max-h-[85vh] rounded-2xl border border-paper-200/80 bg-paper-100 text-ink-900 shadow-[0_24px_64px_rgba(0,0,0,0.7)] overflow-hidden"
+            className="glass-modal pointer-events-auto relative flex flex-col w-full max-w-[580px] max-h-[85vh] rounded-2xl overflow-hidden"
           >
             {modalBody}
           </motion.div>
@@ -605,46 +638,95 @@ export default function TaskModal(props: TaskModalProps) {
           initial={isDesktop ? { x: '100%' } : { y: '100%' }}
           animate={isDesktop ? { x: 0 } : { y: 0 }}
           exit={isDesktop ? { x: '100%' } : { y: '100%' }}
-          transition={{ type: 'spring', stiffness: 380, damping: 34 }}
+          transition={SPRINGS.sheet}
+          drag={!isDesktop ? 'y' : false}
+          dragControls={dragControls}
+          dragListener={false}
+          dragConstraints={{ top: 0 }}
+          dragElastic={0.2}
+          onDragEnd={(_, info) => {
+            if (info.offset.y > 80 || info.velocity.y > 280) {
+              onClose()
+            }
+          }}
           onKeyDown={handleKeyDown}
           role="dialog"
           aria-modal="true"
           aria-label={taskToEdit ? 'Edit task' : 'New task'}
-          className={`fixed z-50 flex flex-col bg-paper-100 text-ink-900 overflow-hidden ${
+          className={`glass-sheet fixed z-50 flex flex-col overflow-hidden ${
             isDesktop
-              ? 'inset-y-0 right-0 w-full max-w-[560px] border-l border-paper-200/80 shadow-[-24px_0_60px_rgba(0,0,0,0.6)]'
-              : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px] border-t border-paper-200/80 shadow-[0_-20px_60px_rgba(0,0,0,0.6)]'
+              ? 'inset-y-0 right-0 w-full max-w-[480px] rounded-l-3xl border-l border-paper-200/80 shadow-[-16px_0_40px_rgba(0,0,0,0.4)]'
+              : 'inset-x-0 bottom-0 max-h-[90dvh] w-full rounded-t-[28px]'
           }`}
         >
           {modalBody}
         </motion.div>
       )}
 
-      {/* Centered date picker dialog */}
-      {scheduleOpen && (
-        <div
-          className="fixed inset-0 z-[70] bg-[#0c0b0a]/60 backdrop-blur-sm"
-          onClick={() => setScheduleOpen(false)}
-        />
-      )}
-      {scheduleOpen && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Set due date"
-          className="pointer-events-none fixed inset-0 z-[71] flex items-center justify-center p-4"
-        >
-          <div className="pointer-events-auto w-full max-w-[340px] animate-pop">
-            <DatePickerPanel
-              value={dueDate}
-              onChange={setDueDate}
-              accentColor="pine"
-              weekStartsOn={weekStartsOn}
-              onClose={() => setScheduleOpen(false)}
+      {/* Date picker dialog on desktop / bottom sheet on mobile */}
+      <AnimatePresence>
+        {scheduleOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-[70] bg-[#0c0b0a]/60 backdrop-blur-sm"
+              onClick={() => setScheduleOpen(false)}
             />
-          </div>
-        </div>
-      )}
+            {isDesktop ? (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Set due date"
+                className="pointer-events-none fixed inset-0 z-[71] flex items-center justify-center p-4"
+              >
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92, y: 8 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.92, y: 8 }}
+                  transition={SPRINGS.popover}
+                  className="glass-modal pointer-events-auto w-full max-w-[340px] rounded-2xl overflow-hidden"
+                >
+                  <DatePickerPanel
+                    value={dueDate}
+                    onChange={setDueDate}
+                    accentColor="pine"
+                    weekStartsOn={weekStartsOn}
+                    onClose={() => setScheduleOpen(false)}
+                  />
+                </motion.div>
+              </div>
+            ) : (
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={SPRINGS.sheet}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Set due date"
+                className="glass-sheet fixed inset-x-0 bottom-0 z-[71] max-h-[85dvh] w-full rounded-t-[28px] p-4 pb-8 flex flex-col items-center"
+              >
+                <div className="h-1 w-9 rounded-full bg-paper-300/70 mb-3" />
+                <div className="w-full max-w-[340px]">
+                  <DatePickerPanel
+                    value={dueDate}
+                    onChange={(d) => {
+                      setDueDate(d)
+                      triggerHaptic('light')
+                    }}
+                    accentColor="pine"
+                    weekStartsOn={weekStartsOn}
+                    onClose={() => setScheduleOpen(false)}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </>
+        )}
+      </AnimatePresence>
     </>
   )
 }

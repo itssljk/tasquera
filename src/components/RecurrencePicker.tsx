@@ -302,12 +302,12 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                           onClick={() => handlePresetSelect(p.value)}
                           className={`group/preset flex items-center justify-between rounded-xl px-3 py-2 text-small font-medium transition-all duration-150 hover:translate-x-0.5 active:scale-[0.98] cursor-pointer ${
                             active
-                              ? 'bg-pine-600 text-paper-50 shadow-xs'
+                              ? 'bg-pine-600 text-on-accent shadow-xs'
                               : 'bg-paper-200/50 text-ink-700 hover:bg-paper-200 hover:text-ink-900'
                           }`}
                         >
                           <span>{p.label}</span>
-                          {active && <CheckIcon className="size-3.5 text-paper-50 shrink-0 transition-transform duration-150 group-hover/preset:scale-110" />}
+                          {active && <CheckIcon className="size-3.5 text-on-accent shrink-0 transition-transform duration-150 group-hover/preset:scale-110" />}
                         </button>
                       )
                     })}
@@ -366,7 +366,7 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                               }}
                               className={`rounded-lg py-1 text-caption font-medium transition-all ${
                                 selected
-                                  ? 'bg-pine-600 text-paper-50 font-semibold shadow-2xs'
+                                  ? 'bg-pine-600 text-on-accent font-semibold shadow-2xs'
                                   : 'bg-paper-100/80 text-ink-600 hover:bg-paper-200 hover:text-ink-900'
                               }`}
                             >
@@ -418,7 +418,7 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                                   onClick={() => handleDayToggle(d.index)}
                                   className={`flex flex-col items-center justify-center py-1 rounded-lg text-micro font-semibold transition-all ${
                                     active
-                                      ? 'bg-pine-600 text-paper-50 shadow-2xs ring-1 ring-pine-500/50'
+                                      ? 'bg-pine-600 text-on-accent shadow-2xs ring-1 ring-pine-500/50'
                                       : 'bg-paper-100 text-ink-600 hover:bg-paper-200 hover:text-ink-900'
                                   }`}
                                 >
@@ -462,7 +462,7 @@ export default function RecurrencePicker({ value, onChange }: RecurrencePickerPr
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="rounded-lg bg-pine-600 px-2.5 py-1 text-caption font-semibold text-paper-50 hover:bg-pine-700 transition-colors cursor-pointer"
+                    className="rounded-lg bg-pine-600 px-2.5 py-1 text-caption font-semibold text-on-accent hover:bg-pine-700 transition-colors cursor-pointer"
                   >
                     Done
                   </button>

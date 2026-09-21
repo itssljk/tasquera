@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { isMac, getSearchShortcut } from './platform'
+import { isMac, isAndroid, getSearchShortcut } from './platform'
 
 describe('platform utilities', () => {
   const originalNavigator = window.navigator
@@ -68,5 +68,32 @@ describe('platform utilities', () => {
 
     expect(isMac()).toBe(false)
     expect(getSearchShortcut()).toBe('Ctrl+K')
+  })
+
+  it('detects Android platform correctly', () => {
+    Object.defineProperty(window, 'navigator', {
+      value: {
+        userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36',
+        platform: 'Linux armv8l',
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    expect(isAndroid()).toBe(true)
+    expect(isMac()).toBe(false)
+  })
+
+  it('returns false for isAndroid on non-Android platforms', () => {
+    Object.defineProperty(window, 'navigator', {
+      value: {
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+        platform: 'iPhone',
+      },
+      writable: true,
+      configurable: true,
+    })
+
+    expect(isAndroid()).toBe(false)
   })
 })

@@ -1,29 +1,36 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, Reorder } from 'framer-motion'
+import { SPRINGS } from './lib/motion'
 import { useStore } from './state/store'
 import { useRoute } from './lib/route'
 import { findCollection } from './lib/model'
-import DesktopNavPill from './components/DesktopNavPill'
+import Sidebar from './components/Sidebar'
+import MobileListsDrawer from './components/MobileListsDrawer'
 import MobileBottomDock from './components/MobileBottomDock'
-import MobileDrawerSheet from './components/MobileDrawerSheet'
 import CommandPalette from './components/CommandPalette'
 import TaskRow from './components/TaskRow'
 import TosView from './components/TosView'
 import PrivacyView from './components/PrivacyView'
 import LicensesView from './components/LicensesView'
 import BatchActionBar from './components/BatchActionBar'
-import { IOSInstallModal, usePWAInstall } from './components/InstallPWA'
+import { AndroidDownloadBanner, AndroidInstallModal, IOSInstallModal, usePWAInstall } from './components/InstallPWA'
 import { AppUpdateBanner } from './components/AppUpdate'
 import StoragePermissionOnboarding from './components/StoragePermissionOnboarding'
-import { KanbanIcon, ListIcon, LogoMark, PlusIcon, SearchIcon } from './components/icons'
+import { CalendarIcon, CheckIcon, FlagIcon, KanbanIcon, ListIcon, LogoMark, PlusIcon, SearchIcon, SettingsIcon } from './components/icons'
 import { StatusBar, Style } from '@capacitor/status-bar'
 import type { MenuState, Route, Task, TaskStatus } from './types'
 import { isNativePlatform } from './lib/sync'
+import { triggerHaptic } from './lib/platform'
 import { useTaskReminders } from './lib/notifications'
 import { useAppUpdater } from './lib/useAppUpdater'
 import { useSyncEngine } from './lib/useSyncEngine'
 import { useTaskView } from './lib/useTaskView'
 import { useKeyboardNav } from './lib/useKeyboardNav'
+import { initBackButtonListener } from './lib/backButton'
+import { parseTaskInput } from './lib/nlp'
+import { addDaysISO, formatDue, todayISO } from './lib/date'
+import { useIsDesktop } from './lib/useMediaQuery'
+import KeyboardShortcutsModal from './components/KeyboardShortcutsModal'
 
 // Heavy views and modals code-split on demand
 const BoardView = lazy(() => import('./components/BoardView'))
@@ -35,34 +42,32 @@ const BulkDeleteListsModal = lazy(() => import('./components/BulkDeleteListsModa
 function EmptyState({
   title,
   sub,
-  onAction,
   actionLabel,
+  onAction,
 }: {
   title: string
   sub?: string
-  onAction?: () => void
   actionLabel?: string
+  onAction?: () => void
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 16, scale: 0.97 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-      className="flex min-h-[52vh] flex-col items-center justify-center py-14 text-center"
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+      className="flex min-h-[32vh] flex-col items-center justify-center py-12 text-center"
     >
-      <LogoMark className="mx-auto mb-7 size-12 shadow-sm" />
-      <p className="font-sans text-display font-bold leading-snug tracking-tight text-ink-900">{title}</p>
-      {sub && <p className="mx-auto mt-2.5 max-w-xs text-body-lg text-ink-500">{sub}</p>}
-      {onAction && (
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.96 }}
+      <p className="font-serif italic text-display-md leading-snug tracking-tight text-ink-900">{title}</p>
+      {sub && <p className="mx-auto mt-2 max-w-sm text-body text-ink-500">{sub}</p>}
+      {actionLabel && onAction && (
+        <button
+          type="button"
           onClick={onAction}
-          className="mt-6 inline-flex items-center gap-2 rounded-xl bg-pine-600 px-4 py-2.5 text-body-lg font-medium text-[#fbf9f5] shadow-xs transition-colors hover:bg-pine-700 active:bg-pine-800 cursor-pointer"
+          className="mt-5 inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-paper-100 px-4 py-2 text-body font-semibold text-pine-600 ring-1 ring-paper-200 transition-colors hover:bg-pine-500/10 hover:ring-pine-500/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pine-600 cursor-pointer"
         >
-          <PlusIcon className="size-4 stroke-[2.2]" />
-          <span>{actionLabel ?? 'Add a task'}</span>
-        </motion.button>
+          <PlusIcon className="size-3.5" />
+          {actionLabel}
+        </button>
       )}
     </motion.div>
   )
@@ -71,6 +76,7 @@ function EmptyState({
 export default function App() {
   const store = useStore()
   const route = useRoute()
+  const isDesktop = useIsDesktop()
   const pwaInstall = usePWAInstall()
   const updater = useAppUpdater()
 
@@ -81,7 +87,27 @@ export default function App() {
   const [isDrawerSheetOpen, setIsDrawerSheetOpen] = useState(false)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
+  const [isShortcutsOpen, setIsShortcutsOpen] = useState(false)
+  const [upcomingMode, setUpcomingMode] = useState<'agenda' | 'calendar'>('agenda')
+  const [showCompletedArchive, setShowCompletedArchive] = useState(false)
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([])
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tasquera:sidebar-collapsed') === 'true'
+    } catch {
+      return false
+    }
+  })
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('tasquera:sidebar-collapsed', String(next))
+      } catch {}
+      return next
+    })
+  }
 
   const [modalState, setModalState] = useState<{
     isOpen: boolean
@@ -90,6 +116,50 @@ export default function App() {
     defaultStatus?: TaskStatus
     defaultDueDate?: string | null
   }>({ isOpen: false })
+
+  const [inlineQuickAddTitle, setInlineQuickAddTitle] = useState('')
+  const inlineQuickAddRef = useRef<HTMLInputElement>(null)
+
+  const handleInlineQuickAdd = (e: React.FormEvent) => {
+    e.preventDefault()
+    const trimmed = inlineQuickAddTitle.trim()
+    if (!trimmed) return
+    const parsed = parseTaskInput(trimmed)
+
+    let defaultDueDate: string | null = null
+    if (effectiveRoute.name === 'today') {
+      defaultDueDate = todayISO()
+    } else if (effectiveRoute.name === 'upcoming') {
+      defaultDueDate = addDaysISO(todayISO(), 1)
+    }
+
+    const dueDate = parsed.dueDate ?? defaultDueDate
+
+    store.addTask({
+      title: parsed.title || trimmed,
+      dueDate,
+      priority: parsed.priority,
+      listId: activeListId,
+      status: 'todo',
+    })
+
+    // The view you typed in may not show the task you just created (e.g.
+    // "Walk dog tomorrow" from Today, or a dated task from Inbox) — say so.
+    const today = todayISO()
+    const taskVisibleHere =
+      effectiveRoute.name === 'inbox'
+        ? dueDate === null
+        : effectiveRoute.name === 'today'
+          ? !!dueDate && dueDate <= today
+          : effectiveRoute.name === 'upcoming'
+            ? !!dueDate && dueDate > today
+            : true
+    if (dueDate && !taskVisibleHere) {
+      store.showToast(`Saved to ${formatDue(dueDate)} — find it in Upcoming`)
+    }
+
+    setInlineQuickAddTitle('')
+  }
 
   // Sync engine handling native/web filesystem access & polling
   const {
@@ -129,13 +199,25 @@ export default function App() {
     setSelectedTaskIds([])
   }, [route])
 
-  // Configure transparent edge-to-edge status bar on native platform
+  // Auto-dismiss the undo/notification toast after a pause
+  useEffect(() => {
+    if (!store.undoToastMessage) return
+    const t = setTimeout(() => store.clearUndoToast(), 6000)
+    return () => clearTimeout(t)
+  }, [store.undoToastMessage, store.clearUndoToast])
+
+  // Configure transparent edge-to-edge status bar on native platform, synced with theme
   useEffect(() => {
     if (isNativePlatform()) {
+      const isLight = store.settings?.theme === 'light'
       StatusBar.setOverlaysWebView({ overlay: true }).catch(() => {})
-      StatusBar.setStyle({ style: Style.Dark }).catch(() => {})
+      StatusBar.setStyle({ style: isLight ? Style.Light : Style.Dark }).catch(() => {})
       StatusBar.setBackgroundColor({ color: '#00000000' }).catch(() => {})
     }
+  }, [store.settings?.theme])
+
+  useEffect(() => {
+    initBackButtonListener()
     // Preload heavy BoardView component chunk
     import('./components/BoardView')
   }, [])
@@ -166,6 +248,18 @@ export default function App() {
     collections,
     effectiveRoute,
   })
+
+  // Synchronize calendar mode when navigating to #/calendar
+  useEffect(() => {
+    if (route.name === 'calendar') {
+      setUpcomingMode('calendar')
+    }
+  }, [route.name])
+
+  const isCalendarActive =
+    view.mode === 'calendar' ||
+    effectiveRoute.name === 'calendar' ||
+    (effectiveRoute.name === 'upcoming' && upcomingMode === 'calendar')
 
   const openCreateModal = (
     listId: string | null = activeListId,
@@ -249,7 +343,10 @@ export default function App() {
 
       if (isInput) return
 
-      if (e.key === '1') {
+      if (e.key === '?') {
+        e.preventDefault()
+        setIsShortcutsOpen(true)
+      } else if (e.key === '1') {
         e.preventDefault()
         window.location.hash = '#/inbox'
       } else if (e.key === '2') {
@@ -261,14 +358,25 @@ export default function App() {
       } else if (e.key === '4') {
         e.preventDefault()
         setIsCommandPaletteOpen(true)
-      } else if (e.key === '/') {
+      } else if (e.key === '[') {
         e.preventDefault()
-        openCreateModal(activeListId)
+        handleToggleSidebar()
+      } else if (e.key === ',') {
+        e.preventDefault()
+        window.location.hash = '#/settings'
+      } else if (e.key === '/' || e.key === 'c' || e.key === 'C') {
+        e.preventDefault()
+        if (inlineQuickAddRef.current && (view.mode === 'list' || !modalState.isOpen)) {
+          inlineQuickAddRef.current.focus()
+          inlineQuickAddRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        } else {
+          openCreateModal(activeListId)
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [activeListId])
+  }, [activeListId, view.mode, modalState.isOpen])
 
   // Close menus on outside click or Escape
   useEffect(() => {
@@ -336,55 +444,97 @@ export default function App() {
   }
 
   const routeKey =
-    effectiveRoute.name === 'collection' ? `collection-${effectiveRoute.id}` : effectiveRoute.name
+    effectiveRoute.name === 'collection'
+      ? `collection-${effectiveRoute.id}`
+      : effectiveRoute.name === 'upcoming'
+        ? `upcoming-${upcomingMode}`
+        : effectiveRoute.name
 
   return (
-    <div className="min-h-screen bg-paper-50 flex flex-col selection:bg-pine-500/20">
-      {/* Desktop Floating Navigation Pill */}
-      <div className="sticky top-0 z-30 hidden md:block">
-        <DesktopNavPill
-          route={effectiveRoute}
-          collections={collections}
-          countFor={countFor}
-          onOpenCreateTask={() => openCreateModal(activeListId)}
-          onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-          onToggleFavoriteCollection={store.toggleFavoriteCollection}
-          onDeleteCollection={store.deleteCollection}
-          onRenameCollection={store.renameCollection}
-          onAddCollection={store.addCollection}
-          onOpenBulkDelete={() => setIsBulkDeleteOpen(true)}
-        />
-      </div>
+    <div className="min-h-screen bg-paper-50 flex selection:bg-pine-500/20">
+      {/* Collapsible Left Sidebar dedicated to Lists & Boards (Desktop) */}
+      <Sidebar
+        route={effectiveRoute}
+        collections={collections}
+        countFor={countFor}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapsed={handleToggleSidebar}
+        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onAddCollection={store.addCollection}
+        onRenameCollection={store.renameCollection}
+        onDeleteCollection={store.deleteCollection}
+        onToggleFavoriteCollection={store.toggleFavoriteCollection}
+        onOpenBulkDelete={() => setIsBulkDeleteOpen(true)}
+      />
 
-      {/* Mobile Top Minimal Header */}
-      <div className="sticky top-0 z-20 flex items-center justify-between bg-paper-50/90 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md md:hidden">
-        <div className="flex items-center gap-2">
-          <LogoMark className="size-5" />
-          <span className="font-sans text-brand font-bold tracking-tight text-ink-900">
-            Tasquera<span className="text-pine-500">.</span>
-          </span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            onClick={() => setIsCommandPaletteOpen(true)}
-            aria-label="Search & Commands"
-            className="rounded-lg p-2 text-ink-500 transition-colors hover:bg-paper-100 cursor-pointer"
-          >
-            <SearchIcon className="size-5" />
-          </button>
-        </div>
-      </div>
+      {/* Dedicated Slide-Out Drawer for Lists & Boards (Mobile) */}
+      <MobileListsDrawer
+        isOpen={isDrawerSheetOpen}
+        onClose={() => setIsDrawerSheetOpen(false)}
+        route={effectiveRoute}
+        collections={collections}
+        countFor={countFor}
+        onAddCollection={store.addCollection}
+        onRenameCollection={store.renameCollection}
+        onDeleteCollection={store.deleteCollection}
+        onToggleFavoriteCollection={store.toggleFavoriteCollection}
+        onOpenBulkDelete={() => setIsBulkDeleteOpen(true)}
+      />
 
-      {/* Main Focus Canvas */}
-      <main className="flex-1 w-full overflow-y-auto">
+      {/* Main Column: Content Canvas */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+        {/* Mobile Top Minimal Header */}
+        <div className="sticky top-0 z-20 flex items-center justify-between bg-paper-50/90 px-4 pb-2.5 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)] backdrop-blur-md md:hidden">
+          <div className="flex items-center gap-2">
+            <LogoMark className="size-5" />
+            <span className="font-serif italic text-brand tracking-tight text-ink-900">
+              Tasquera<span className="text-pine-500">.</span>
+            </span>
+            {syncDirHandle && (
+              <span
+                title={lastSyncTime ? `Synced: ${new Date(lastSyncTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Sync connected'}
+                className="size-1.5 rounded-full bg-pine-500 shadow-[0_0_6px_rgba(46,160,105,0.8)]"
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setIsCommandPaletteOpen(true)}
+              aria-label="Search & Commands"
+              className="flex size-10 items-center justify-center rounded-xl text-ink-500 transition-colors hover:bg-paper-100 hover:text-ink-900 cursor-pointer"
+            >
+              <SearchIcon className="size-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('selection')
+                if (effectiveRoute.name === 'settings') {
+                  window.location.hash = '#/inbox'
+                } else {
+                  window.location.hash = '#/settings'
+                }
+              }}
+              aria-label="Settings"
+              className={`flex size-10 items-center justify-center rounded-xl transition-colors cursor-pointer ${
+                effectiveRoute.name === 'settings'
+                  ? 'bg-paper-200 text-pine-500 shadow-2xs'
+                  : 'text-ink-500 hover:bg-paper-100 hover:text-ink-900'
+              }`}
+            >
+              <SettingsIcon className="size-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Main Focus Canvas */}
+        <main className="flex-1 w-full overflow-y-auto">
         <div
-          className={`mx-auto w-full px-4 sm:px-6 lg:px-8 pb-32 pt-4 sm:pt-8 lg:pt-10 transition-[max-width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
-            view.mode === 'board'
-              ? 'max-w-[1400px]'
-              : view.mode === 'calendar'
-                ? 'max-w-[1120px]'
-                : 'max-w-[720px]'
+          className={`mx-auto w-full px-4 sm:px-6 lg:px-8 pb-32 pt-5 sm:pt-5 lg:pt-6 transition-[max-width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            view.mode === 'board' || isCalendarActive
+              ? 'max-w-[1440px]'
+              : 'max-w-[720px]'
           }`}
         >
           <AnimatePresence mode="wait" initial={false}>
@@ -395,20 +545,20 @@ export default function App() {
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              {(view.mode === 'list' || view.mode === 'board') && (
+              {(view.mode === 'list' || view.mode === 'board' || isCalendarActive) && (
                 <header className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pb-5">
                   <div className="min-w-0">
-                    <h1 className="font-sans text-display-md sm:text-display-lg font-bold leading-none tracking-tight text-ink-900 truncate">
-                      {view.title}
+                    <h1 className="font-serif italic text-display-md sm:text-display-lg font-normal leading-tight tracking-tight text-ink-900 truncate pb-1 pr-2">
+                      {isCalendarActive ? 'Upcoming' : view.title}
                     </h1>
-                    {view.subtitle &&
+                    {view.subtitle && !isCalendarActive &&
                       (effectiveRoute.name === 'today' ? (
-                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-paper-300/60 bg-paper-100/70 px-3 py-1 font-medium text-ink-500">
-                          <span className="size-1.5 rounded-full bg-pine-500" />
-                          <span className="text-small">{view.subtitle}</span>
-                        </div>
+                        <p className="mt-1 flex items-center gap-2 text-body font-medium text-ink-500">
+                          <span className="size-1.5 rounded-full bg-pine-500 shrink-0" />
+                          <span className="tabular-nums tracking-normal">{view.subtitle}</span>
+                        </p>
                       ) : (
-                        <p className="mt-2.5 text-small font-medium uppercase tracking-[0.16em] text-ink-500">
+                        <p className="mt-1 text-body text-ink-500">
                           {view.subtitle}
                         </p>
                       ))}
@@ -466,6 +616,63 @@ export default function App() {
                       </div>
                     )}
 
+                    {/* View Switcher for Upcoming (Agenda vs Calendar) */}
+                    {(effectiveRoute.name === 'upcoming' || effectiveRoute.name === 'calendar') && (
+                      <div className="relative flex items-center rounded-xl bg-paper-100 p-0.5 border border-paper-200/80 shadow-2xs">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (effectiveRoute.name === 'calendar') {
+                              window.location.hash = '#/upcoming'
+                            }
+                            setUpcomingMode('agenda')
+                          }}
+                          className={`relative flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-small font-medium transition-colors cursor-pointer ${
+                            upcomingMode === 'agenda' && effectiveRoute.name !== 'calendar'
+                              ? 'text-ink-900 font-semibold'
+                              : 'text-ink-500 hover:text-ink-900'
+                          }`}
+                          aria-label="Agenda view"
+                          title="Agenda view"
+                        >
+                          {upcomingMode === 'agenda' && effectiveRoute.name !== 'calendar' && (
+                            <motion.div
+                              layoutId="active-upcoming-view-tab"
+                              className="absolute inset-0 rounded-[7px] bg-paper-50 shadow-xs"
+                              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                            />
+                          )}
+                          <span className="relative z-10 flex items-center gap-1.5">
+                            <ListIcon className="size-3.5" />
+                            <span>Agenda</span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setUpcomingMode('calendar')}
+                          className={`relative flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-small font-medium transition-colors cursor-pointer ${
+                            upcomingMode === 'calendar' || effectiveRoute.name === 'calendar'
+                              ? 'text-ink-900 font-semibold'
+                              : 'text-ink-500 hover:text-ink-900'
+                          }`}
+                          aria-label="Calendar view"
+                          title="Calendar view"
+                        >
+                          {(upcomingMode === 'calendar' || effectiveRoute.name === 'calendar') && (
+                            <motion.div
+                              layoutId="active-upcoming-view-tab"
+                              className="absolute inset-0 rounded-[7px] bg-paper-50 shadow-xs"
+                              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                            />
+                          )}
+                          <span className="relative z-10 flex items-center gap-1.5">
+                            <CalendarIcon className="size-3.5" />
+                            <span>Calendar</span>
+                          </span>
+                        </button>
+                      </div>
+                    )}
+
                     {view.mode === 'list' && effectiveRoute.name === 'completed' ? (
                       view.doneList.length > 0 && (
                         <motion.button
@@ -477,12 +684,15 @@ export default function App() {
                           Clear all
                         </motion.button>
                       )
-                    ) : view.mode === 'list' && total > 0 ? (
+                    ) : view.mode === 'list' && !isCalendarActive && total > 0 ? (
                       <div className="w-28 shrink-0 text-right">
-                        <p className="text-small font-medium text-ink-500">
-                          {view.doneList.length} of {total} done
+                        <p className="text-small font-medium text-ink-500 tabular-nums">
+                          {view.doneList.length}
+                          <span className="px-0.5 text-ink-400">of</span>
+                          {total}
+                          <span className="pl-1">done</span>
                         </p>
-                        <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-paper-200">
+                        <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-paper-300">
                           <motion.div
                             className="h-full rounded-full bg-pine-500"
                             initial={{ width: 0 }}
@@ -502,10 +712,10 @@ export default function App() {
                     activeCollection && (
                       <motion.div
                         key={`board-${activeCollection.id}`}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                        initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                        exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                        transition={SPRINGS.contentSlide}
                       >
                         <BoardView
                           board={activeCollection}
@@ -521,16 +731,17 @@ export default function App() {
                           onOpenCreateModal={openCreateModal}
                           onEditDetails={openEditModal}
                           onReorderColumnTasks={store.reorderColumnTasks}
+                          onAddTask={store.addTask}
                         />
                       </motion.div>
                     )
-                  ) : view.mode === 'calendar' ? (
+                  ) : isCalendarActive ? (
                     <motion.div
                       key="calendar"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                      transition={SPRINGS.contentSlide}
                       className="mt-2"
                     >
                       <CalendarView
@@ -551,10 +762,10 @@ export default function App() {
                   ) : view.mode === 'settings' ? (
                     <motion.div
                       key="settings"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                      transition={SPRINGS.contentSlide}
                       className="mt-2"
                     >
                       <SettingsView
@@ -580,15 +791,16 @@ export default function App() {
                         updater={updater}
                         collections={collections}
                         onOpenBulkDelete={() => setIsBulkDeleteOpen(true)}
+                        onOpenShortcuts={isDesktop ? () => setIsShortcutsOpen(true) : undefined}
                       />
                     </motion.div>
                   ) : view.mode === 'tos' ? (
                     <motion.div
                       key="tos"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                      transition={SPRINGS.contentSlide}
                       className="mt-2"
                     >
                       <TosView />
@@ -596,10 +808,10 @@ export default function App() {
                   ) : view.mode === 'privacy' ? (
                     <motion.div
                       key="privacy"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                      transition={SPRINGS.contentSlide}
                       className="mt-2"
                     >
                       <PrivacyView />
@@ -607,40 +819,82 @@ export default function App() {
                   ) : view.mode === 'licenses' ? (
                     <motion.div
                       key="licenses"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                      transition={SPRINGS.contentSlide}
                       className="mt-2"
                     >
                       <LicensesView />
                     </motion.div>
-                  ) : view.open.length === 0 && view.doneList.length === 0 && view.groups.length === 0 ? (
-                    <motion.div
-                      key={`empty-${effectiveRoute.name}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
-                    >
-                      <EmptyState
-                        {...emptyCopy()}
-                        onAction={
-                          effectiveRoute.name !== 'completed'
-                            ? () => openCreateModal(activeListId)
-                            : undefined
-                        }
-                        actionLabel="Add task"
-                      />
-                    </motion.div>
                   ) : (
                     <motion.div
                       key={`list-${effectiveRoute.name === 'collection' ? effectiveRoute.id : effectiveRoute.name}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.18, ease: 'easeOut' }}
+                      initial={{ opacity: 0, y: 6, filter: 'blur(4px)' }}
+                      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                      exit={{ opacity: 0, y: -4, filter: 'blur(4px)' }}
+                      transition={SPRINGS.contentSlide}
                     >
+                      {effectiveRoute.name !== 'completed' && (
+                        <form
+                          onSubmit={handleInlineQuickAdd}
+                          className="group relative mb-4 flex items-center gap-3 rounded-xl bg-paper-100/70 px-3.5 py-2.5 ring-1 ring-paper-200/80 transition-all focus-within:bg-paper-100 focus-within:ring-2 focus-within:ring-pine-500/40"
+                        >
+                          <PlusIcon className="size-4 shrink-0 text-ink-500" />
+                          <input
+                            ref={inlineQuickAddRef}
+                            type="text"
+                            value={inlineQuickAddTitle}
+                            onChange={(e) => setInlineQuickAddTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                inlineQuickAddRef.current?.blur()
+                              }
+                            }}
+                            placeholder={isDesktop ? 'Add a task… (press "/" or "c" to focus, "Enter" to save)' : 'Add a task…'}
+                            className="w-full bg-transparent text-body font-medium text-ink-900 placeholder:text-ink-400 focus:outline-none"
+                          />
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {(() => {
+                              const parsed = parseTaskInput(inlineQuickAddTitle)
+                              return (
+                                <>
+                                  {parsed.dueDate && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-pine-500/15 px-2 py-0.5 text-micro font-medium text-pine-300">
+                                      <CalendarIcon className="size-3" />
+                                      {formatDue(parsed.dueDate)}
+                                    </span>
+                                  )}
+                                  {parsed.priority && (
+                                    <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-2 py-0.5 text-micro font-medium text-amber-300 capitalize">
+                                      <FlagIcon className="size-3" />
+                                      {parsed.priority}
+                                    </span>
+                                  )}
+                                </>
+                              )
+                            })()}
+                            {inlineQuickAddTitle.trim() && (
+                              <button
+                                type="submit"
+                                className="shrink-0 rounded-lg bg-pine-600 px-2.5 py-1 text-caption font-semibold text-[#fbf9f5] transition-colors hover:bg-pine-700 cursor-pointer"
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        </form>
+                      )}
+
+                      {/* Empty state: quiet whisper under the rapid-capture input */}
+                      {view.open.length === 0 && view.groups.length === 0 && (
+                        effectiveRoute.name === 'completed' ? (
+                          view.doneList.length === 0 && <EmptyState {...emptyCopy()} />
+                        ) : (
+                          <EmptyState {...emptyCopy()} />
+                        )
+                      )}
+
                       {view.groups.length > 0 ? (
                         view.groups.map((g) => (
                           <section key={g.label} className="mt-5">
@@ -667,8 +921,8 @@ export default function App() {
                             {view.doneList.map((t) => renderRow(t, true))}
                           </AnimatePresence>
                         </ul>
-                      ) : (
-                        <div className="mt-4 space-y-3">
+                      ) : view.open.length > 0 ? (
+                        <div className="mt-4">
                           {view.reorderable ? (
                             <Reorder.Group
                               axis="y"
@@ -686,28 +940,40 @@ export default function App() {
                               </AnimatePresence>
                             </ul>
                           )}
-                          <button
-                            type="button"
-                            onClick={() => openCreateModal(activeListId)}
-                            className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-paper-300/80 px-3.5 py-2.5 text-body font-medium text-ink-500 transition-colors hover:border-pine-500/50 hover:bg-paper-100/60 hover:text-pine-600 cursor-pointer"
-                          >
-                            <PlusIcon className="size-4 stroke-[2]" />
-                            <span>Add task…</span>
-                          </button>
                         </div>
-                      )}
+                      ) : null}
+
+                      {/* In-place collapsible completed archive */}
                       {view.doneList.length > 0 && effectiveRoute.name !== 'completed' && (
-                        <p className="mt-8 text-center">
+                        <div className="mt-8 pt-4 border-t border-paper-200/50">
                           <button
                             type="button"
-                            onClick={() => {
-                              window.location.hash = '#/completed'
-                            }}
-                            className="rounded-full border border-paper-300/70 px-4 py-1.5 text-small font-medium text-ink-500 transition-colors duration-150 hover:border-pine-500/40 hover:text-pine-600 cursor-pointer"
+                            onClick={() => setShowCompletedArchive((prev) => !prev)}
+                            className="flex w-full items-center justify-between rounded-xl px-2.5 py-2 text-small font-medium text-ink-500 hover:bg-paper-100/60 hover:text-ink-800 transition-colors cursor-pointer"
                           >
-                            View {view.doneList.length} completed {view.doneList.length === 1 ? 'task' : 'tasks'}
+                            <div className="flex items-center gap-2">
+                              <CheckIcon className="size-4 text-pine-500" />
+                              <span>Completed ({view.doneList.length})</span>
+                            </div>
+                            <span className="text-caption font-medium text-ink-400">
+                              {showCompletedArchive ? 'Hide' : 'Show'}
+                            </span>
                           </button>
-                        </p>
+
+                          <AnimatePresence>
+                            {showCompletedArchive && (
+                              <motion.ul
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                transition={SPRINGS.snappy}
+                                className="mt-2 space-y-0.5 overflow-hidden"
+                              >
+                                {view.doneList.map((t) => renderRow(t, true))}
+                              </motion.ul>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       )}
                     </motion.div>
                   )}
@@ -717,6 +983,7 @@ export default function App() {
           </AnimatePresence>
         </div>
       </main>
+      </div>
 
       {/* Floating Batch Action Bar */}
       <AnimatePresence>
@@ -725,6 +992,7 @@ export default function App() {
             selectedCount={selectedTaskIds.length}
             collections={collections}
             onMarkDone={() => {
+              triggerHaptic('success')
               store.batchToggleTasks(selectedTaskIds, true)
               setSelectedTaskIds([])
             }}
@@ -741,6 +1009,7 @@ export default function App() {
               setSelectedTaskIds([])
             }}
             onDelete={() => {
+              triggerHaptic('warning')
               store.batchDeleteTasks(selectedTaskIds)
               setSelectedTaskIds([])
             }}
@@ -750,33 +1019,22 @@ export default function App() {
       </AnimatePresence>
 
       {/* Mobile Floating Bottom Dock */}
-      <MobileBottomDock
-        route={effectiveRoute}
-        countFor={countFor}
-        onOpenCreateTask={() => openCreateModal(activeListId)}
-        onOpenSheet={() => setIsDrawerSheetOpen(true)}
-      />
-
-      {/* Mobile Pull-Up Sheet */}
-      <MobileDrawerSheet
-        isOpen={isDrawerSheetOpen}
-        onClose={() => setIsDrawerSheetOpen(false)}
-        route={effectiveRoute}
-        collections={collections}
-        countFor={countFor}
-        onAddCollection={store.addCollection}
-        onRenameCollection={store.renameCollection}
-        onDeleteCollection={store.deleteCollection}
-        onToggleFavoriteCollection={store.toggleFavoriteCollection}
-        onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
-        onOpenBulkDelete={() => setIsBulkDeleteOpen(true)}
-      />
+      {selectedTaskIds.length === 0 && (
+        <MobileBottomDock
+          route={effectiveRoute}
+          countFor={countFor}
+          onOpenCreateTask={() => openCreateModal(activeListId)}
+          onOpenSheet={() => setIsDrawerSheetOpen(true)}
+        />
+      )}
 
       {/* Universal Command Palette (⌘K / Ctrl+K) */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
         collections={collections}
+        tasks={tasks}
+        onSelectTask={openEditModal}
         onOpenCreateTask={() => openCreateModal(activeListId)}
         onAddCollection={store.addCollection}
         onOpenBulkDelete={() => setIsBulkDeleteOpen(true)}
@@ -784,6 +1042,7 @@ export default function App() {
         onExportData={store.exportData}
         onExportMarkdown={handleExportMarkdown}
         onToggleTheme={handleToggleTheme}
+        onOpenShortcuts={isDesktop ? () => setIsShortcutsOpen(true) : undefined}
       />
 
       {/* Task Edit / Create Modal */}
@@ -797,7 +1056,7 @@ export default function App() {
               defaultStatus={modalState.defaultStatus}
               defaultDueDate={modalState.defaultDueDate}
               collections={collections}
-              layout={store.settings.taskModalLayout ?? 'centered'}
+              layout={store.settings.taskModalLayout ?? 'drawer'}
               weekStartsOn={store.settings.weekStartsOn ?? 'monday'}
               onClose={closeModal}
               onSave={handleSaveTask}
@@ -822,6 +1081,12 @@ export default function App() {
         )}
       </AnimatePresence>
 
+      {/* Keyboard Shortcuts Cheat Sheet Modal (?) */}
+      <KeyboardShortcutsModal
+        isOpen={isShortcutsOpen}
+        onClose={() => setIsShortcutsOpen(false)}
+      />
+
       {/* Undo / Redo Toast */}
       <AnimatePresence>
         {store.undoToastMessage && (
@@ -830,9 +1095,11 @@ export default function App() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.94 }}
             transition={{ type: 'spring', stiffness: 420, damping: 28 }}
-            className="fixed bottom-20 md:bottom-8 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-x-4 gap-y-1.5 rounded-2xl bg-paper-100 px-4 py-2.5 text-body font-medium text-ink-900 shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-paper-200 sm:rounded-full sm:px-6 sm:py-3 sm:text-body-lg"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom,0px)+5.25rem)] md:bottom-8 left-1/2 z-50 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-x-4 gap-y-1.5 rounded-2xl bg-paper-100 px-4 py-2.5 text-body font-medium text-ink-900 shadow-[0_12px_40px_rgba(0,0,0,0.25)] border border-paper-200 sm:rounded-full sm:px-6 sm:py-3 sm:text-body-lg"
           >
-            <span className="min-w-0 font-medium text-ink-900 tracking-tight">{store.undoToastMessage}</span>
+            <span className="min-w-0 font-medium text-ink-900 tracking-tight">
+              {isDesktop ? store.undoToastMessage : store.undoToastMessage.replace(/\s*\([^)]*\)/g, '')}
+            </span>
             <div className="flex items-center gap-3 border-l border-paper-300/80 pl-3 sm:gap-4 sm:pl-4">
               {store.canUndo && (
                 <button
@@ -868,10 +1135,20 @@ export default function App() {
       </AnimatePresence>
 
       {!isNativePlatform() && (
-        <IOSInstallModal
-          isOpen={pwaInstall.showIOSModal}
-          onClose={() => pwaInstall.setShowIOSModal(false)}
-        />
+        <>
+          <IOSInstallModal
+            isOpen={pwaInstall.showIOSModal}
+            onClose={() => pwaInstall.setShowIOSModal(false)}
+          />
+          <AndroidInstallModal
+            isOpen={pwaInstall.showAndroidModal}
+            onClose={() => pwaInstall.setShowAndroidModal(false)}
+            onInstallPWA={pwaInstall.promptPWA}
+          />
+          <AndroidDownloadBanner
+            onOpenModal={() => pwaInstall.setShowAndroidModal(true)}
+          />
+        </>
       )}
 
       <AppUpdateBanner updater={updater} />

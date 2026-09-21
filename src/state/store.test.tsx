@@ -33,7 +33,7 @@ beforeEach(() => {
 })
 
 describe('store', () => {
-  it('adds and toggles tasks through statuses', () => {
+  it('adds and toggles tasks (binary todo <-> done)', () => {
     const { result } = setup()
     act(() => result.current.addTask('Hello'))
     expect(result.current.tasks).toHaveLength(1)
@@ -41,10 +41,12 @@ describe('store', () => {
 
     const id = result.current.tasks[0].id
     act(() => result.current.toggleTask(id))
-    expect(result.current.tasks[0].status).toBe('in_progress')
-    act(() => result.current.toggleTask(id))
     expect(result.current.tasks[0].status).toBe('done')
     expect(result.current.tasks[0].done).toBe(true)
+
+    act(() => result.current.toggleTask(id))
+    expect(result.current.tasks[0].status).toBe('todo')
+    expect(result.current.tasks[0].done).toBe(false)
   })
 
   it('spawns the next occurrence when a recurring task is completed', () => {
@@ -52,11 +54,7 @@ describe('store', () => {
     act(() => result.current.addTask({ title: 'Water plants', recurrence: { rule: 'daily' }, dueDate: '2026-08-13' }))
     const id = result.current.tasks[0].id
 
-    // todo -> in_progress does not spawn
-    act(() => result.current.toggleTask(id))
-    expect(result.current.tasks).toHaveLength(1)
-
-    // in_progress -> done spawns the next occurrence
+    // todo -> done directly spawns the next occurrence
     act(() => result.current.toggleTask(id))
     expect(result.current.tasks).toHaveLength(2)
 

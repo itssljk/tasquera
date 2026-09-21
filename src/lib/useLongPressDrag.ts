@@ -25,7 +25,10 @@ const CLICK_SUPPRESS_MS = 400
 export function useLongPressDrag() {
   const controls = useDragControls()
   const [isTouch] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches,
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches,
   )
   const [isDragging, setIsDragging] = useState(false)
 
